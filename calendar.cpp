@@ -244,7 +244,7 @@ void DrawTitleBar(Gdiplus::Graphics* g)
 void DrawControlBox(Gdiplus::Graphics* g)
 {
 	int iconSize = 10;
-	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(Gdiplus::Color::White, 2);
+	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(0xffffffff, 2);
 	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 });
 	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 });
 
@@ -255,7 +255,7 @@ void DrawControlBox(Gdiplus::Graphics* g)
 
 void DrawChangeMonth(Gdiplus::Graphics* g)
 {
-	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(Gdiplus::Color::White, 2);
+	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(0xffffffff, 2);
 	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 3, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + 2 * prevMonth.Width / 4, prevMonth.Y + prevMonth.Height / 4 });
 	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 3, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + 2 * prevMonth.Width / 4, prevMonth.Y + 3 * prevMonth.Height / 4 });
 	
@@ -390,7 +390,7 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 	Date dateJump = DateJump();
 	Date firstDayOfMonth = ToDate(dateJump.year, dateJump.month, 1);
 	int beginningEmptyCells = (6 + firstDayOfMonth.day_of_week) % 7;
-	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>(Gdiplus::RectF{ 0, 0, cellSize.Width, cellSize.Height }, Gdiplus::Color::Orange, Gdiplus::Color::Blue, Gdiplus::LinearGradientModeForwardDiagonal);
+	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>(Gdiplus::RectF{ 0, 0, cellSize.Width, cellSize.Height }, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
 	br.get()->SetGammaCorrection(TRUE);
 	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(br.get(), 4);
 	for (int i = 1; i <= DaysInMonth(dateJump.year, dateJump.month); i++)
