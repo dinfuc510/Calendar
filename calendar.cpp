@@ -1,22 +1,21 @@
 #include <windows.h>
 #include <gdiplus.h>
 #include <CommCtrl.h>
-
 #include <memory>
 #include <ctime>
 #include <string>
 #include <vector>
 #include <unordered_map>
-
 #include <fstream>
-#include <xlocbuf>
+#include <locale>
 #include <codecvt>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
-
+#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
+bool RegisterWndClass(std::wstring, WNDPROC);
 
 void DrawWindow(HWND Handle);
 void DrawBase(Gdiplus::Graphics* g);
@@ -68,7 +67,7 @@ int DaysInMonth(int year, int month);
 int NotesInMonth(int year, int month);
 
 Gdiplus::RectF exitWindow{ windowSize.Width - 25, 5, 20, 20 };
-Gdiplus::RectF minimizeWindow{ exitWindow.X - exitWindow.Width - 5, exitWindow.Y, exitWindow.Width, exitWindow.Height };
+Gdiplus::RectF minimizeWindow{ exitWindow.X - exitWindow.Width - 10, exitWindow.Y, exitWindow.Width, exitWindow.Height };
 Gdiplus::RectF titleBar{ 0, 0, windowSize.Width, exitWindow.GetBottom() + exitWindow.Y };
 int MonthJump = 0;
 Gdiplus::RectF calendar{ 200, 30, 480, windowSize.Height - 40 };
@@ -115,22 +114,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	Gdiplus::GdiplusStartup(&gdiplusStartupToken, &gdiInput, nullptr);
 	MSG messages;
 	{
-		WNDCLASSEX wincl{};
-		wincl.hInstance = hInstance;
-		wincl.lpszClassName = L"TransparentDialog";
-		wincl.lpfnWndProc = WindowProcedure;
-		wincl.style = CS_DBLCLKS;
-		wincl.cbSize = sizeof(WNDCLASSEX);
-		wincl.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-		wincl.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
-		wincl.hCursor = LoadCursor(nullptr, IDC_ARROW);
-		wincl.lpszMenuName = nullptr;
-		wincl.cbClsExtra = 0;
-		wincl.cbWndExtra = 0;
-		wincl.hbrBackground = (HBRUSH)COLOR_BACKGROUND;
-
-		if (!RegisterClassEx(&wincl))
-			return 0;
+		RegisterWndClass(L"TransparentDialog", WindowProcedure);
 
 		windowHwnd = CreateWindowEx(
 			WS_EX_LAYERED,
@@ -259,11 +243,12 @@ void DrawTitleBar(Gdiplus::Graphics* g)
 
 void DrawControlBox(Gdiplus::Graphics* g)
 {
+	int iconSize = 10;
 	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(Gdiplus::Color::White, 2);
-	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + 6, exitWindow.Y + 6 }, Gdiplus::PointF{ exitWindow.GetRight() - 6, exitWindow.GetBottom() - 6 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + 6, exitWindow.GetBottom() - 6 }, Gdiplus::PointF{ exitWindow.GetRight() - 6, exitWindow.Y + 6 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 });
 
-	g->DrawLine(p.get(), Gdiplus::PointF{ minimizeWindow.X + 5, minimizeWindow.Y + minimizeWindow.Height / 2 }, Gdiplus::PointF{ minimizeWindow.GetRight() - 5, minimizeWindow.Y + minimizeWindow.Height / 2 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 - iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 }, Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 + iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 });
 
 	p.reset();
 }
@@ -582,23 +567,31 @@ void DrawPopupBorder(Gdiplus::Graphics* g)
 {
 	if (!isPopup) return;
 
-	int border = 2;
 	std::unique_ptr<Gdiplus::GraphicsPath> path = std::make_unique<Gdiplus::GraphicsPath>();
 	RoundedRect(
 		path.get(),
 		Gdiplus::RectF(
-			popup.X - border, popup.Y - border,
-			popup.Width + border * 2,
-			popup.Height + border * 2
+			popup.X, popup.Y,
+			popup.Width,
+			popup.Height
 		),
 		10);
 
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-
 	g->FillPath(br.get(), path.get());
-
 	br.reset();
 	path.reset();
+
+	float padding = 10;
+	br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(0xffffffff));
+	path = std::make_unique<Gdiplus::GraphicsPath>();
+	RoundedRect(path.get(), Gdiplus::RectF{ popup.X + popup.Width / 2 - 200 / 2 - padding,
+		popup.Y + popup.Height / 2 - 40 / 2 - 4,
+		200 + padding * 2,
+		24 + 4 * 2 }, 12);
+	g->FillPath(br.get(), path.get());
+	path.reset();
+	br.reset();
 }
 
 std::wstring ToMonthName(int month)
@@ -815,7 +808,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 						horizontalScrollValue += (tilt == 37) ? 20 : -20;
 						if (horizontalScrollValue > 0) horizontalScrollValue = 0;
 						else if (horizontalScrollValue < -(horizontalScrollMaxValue - note.Width)) horizontalScrollValue = -(horizontalScrollMaxValue - note.Width);
-						SetTimer(hWnd, ID_TIMER, 1000 / 40, nullptr);
+						SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 					}
 				}
 			}
@@ -1040,23 +1033,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 
 void CreatePopup(HWND& popupWindow, HWND parentWindow, HINSTANCE hInstance)
 {
-	WNDCLASSEX wincl{};
-
-	wincl.hInstance = hInstance;
-	wincl.lpszClassName = L"Popup";
-	wincl.lpfnWndProc = PopupWindowProcedure;
-	wincl.style = CS_DBLCLKS;
-	wincl.cbSize = sizeof(WNDCLASSEX);
-	wincl.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-	wincl.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
-	wincl.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	wincl.lpszMenuName = nullptr;
-	wincl.cbClsExtra = 0;
-	wincl.cbWndExtra = 0;
-	wincl.hbrBackground = nullptr;
-
-	if (!RegisterClassEx(&wincl))
-		return;
+	RegisterWndClass(L"Popup", PopupWindowProcedure);
 
 	popupWindow = CreateWindowEx(
 		WS_EX_TOPMOST,
@@ -1083,8 +1060,9 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 	static HWND buttonHwnd;
 	static HWND closeHwnd;
 	static SUBCLASSPROC subclassEdit;
+	static SUBCLASSPROC subclassButton;
 	static HFONT hFont = CreateFont(24, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-	static HBRUSH popupBackColor = CreateSolidBrush(RGB(0x1e, 0x1e, 0x1e));
+	static HBRUSH popupBackColor = CreateSolidBrush(0x1e1e1e);
 	switch (message)
 	{
 	case WM_CREATE:
@@ -1126,19 +1104,120 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 				}
 				return 0;
 			};
+		subclassButton = [](HWND hWnd, UINT uMsg, WPARAM wParam,
+			LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) -> LRESULT {
+				static bool isMouseDown = false;
+				static bool isMouseLeave = true;
+				switch (uMsg)
+				{
+				case WM_PAINT:
+				{
+					PAINTSTRUCT ps;
+					HDC hdc = BeginPaint(hWnd, &ps);
+
+					RECT rect;
+					GetWindowRect(hWnd, &rect);
+					RECT rcItem{ 0, 0, rect.right - rect.left, rect.bottom - rect.top };
+
+					HBRUSH hBrush = CreateSolidBrush(isMouseDown ? 0xa1470d : isMouseLeave ? 0xc06515 : 0xd27619);
+					FillRect(hdc, &rcItem, hBrush);
+					DeleteObject(hBrush);
+
+					SetBkMode(hdc, TRANSPARENT);
+					SetTextColor(hdc, 0xffffff);
+
+					HFONT hFont = (HFONT)SendMessage(hWnd, WM_GETFONT, 0, 0);
+					SelectObject(hdc, hFont);
+					int len = GetWindowTextLength(hWnd) + 1;
+					LPTSTR lpBuff = new TCHAR[len];
+					len = GetWindowText(hWnd, lpBuff, len);
+					DrawText(hdc, lpBuff, len, &rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+					delete[] lpBuff;
+
+					EndPaint(hWnd, &ps);
+
+				} break;
+				case WM_MOUSEMOVE:
+				{
+					if (isMouseLeave)
+					{
+						TRACKMOUSEEVENT tme{};
+						tme.cbSize = sizeof(TRACKMOUSEEVENT);
+						tme.dwFlags = TME_LEAVE;
+						tme.dwHoverTime = 1;
+						tme.hwndTrack = hWnd;
+						TrackMouseEvent(&tme);
+						isMouseLeave = false;
+						SetTimer(hWnd, 1000, 1000 / 60, nullptr);
+					}
+				} break;
+				case WM_MOUSELEAVE:
+				{
+					isMouseLeave = true;
+					SetTimer(hWnd, 1000, 1000 / 60, nullptr);
+				} break;
+				case WM_LBUTTONDOWN:
+				{
+					isMouseDown = true;
+					SetTimer(hWnd, 1000, 1000 / 60, nullptr);
+				} break;
+				case WM_LBUTTONUP:
+				{
+					isMouseDown = false;
+					const int len = GetWindowTextLength(contentHwnd) + 1;
+					wchar_t* text = new wchar_t[len];
+					GetWindowText(contentHwnd, text, len);
+					if (len > 1 || text[0] != L'\0')
+					{
+						size_t key{ DateHash(Date{DateJump().year, DateJump().month, clickedDay, -1}) };
+						if (allNoteContent.find(key) != allNoteContent.end())
+						{
+							allNoteContent[key].emplace_back(text);
+						}
+						else
+						{
+							allNoteContent.emplace(key, std::vector<std::wstring>{ text });
+						}
+						SetWindowText(contentHwnd, L"");
+
+						isPopup = false;
+						SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+						SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
+						ShowWindow(GetParent(hWnd), SW_HIDE);
+					}
+					delete[] text;
+					SetTimer(hWnd, 1000, 1000 / 60, nullptr);
+				} break;
+				case WM_TIMER:
+				{
+					InvalidateRect(hWnd, nullptr, FALSE);
+					KillTimer(hWnd, wParam);
+
+					return 0;
+				} break;
+				case WM_SETCURSOR:
+					SetCursor(LoadCursor(nullptr, IDC_HAND));
+					break;
+				default:
+					return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+				}
+				return 0;
+			};
+
 		contentHwnd = CreateWindow(
 			L"EDIT",
 			L"",
 			WS_VISIBLE | WS_CHILD | ES_AUTOHSCROLL,
-			popup.Width / 2 - 200 / 2.0,
-			popup.Height / 2 - 40 / 2.0,
+			popup.Width / 2 - 200 / 2,
+			popup.Height / 2 - 40 / 2,
 			200,
-			40,
+			24,
 			hWnd,
 			(HMENU)CONTENT_POPUP,
 			GetModuleHandle(nullptr),
 			nullptr);
 		SendMessage(contentHwnd, WM_SETFONT, (LPARAM)hFont, TRUE);
+		SendMessage(contentHwnd, EM_SETCUEBANNER, 1, (LPARAM)L"Write your note");
 		SetWindowSubclass(contentHwnd, subclassEdit, 0, 0);
 
 		buttonHwnd = CreateWindow(
@@ -1154,14 +1233,15 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 			(HINSTANCE)GetWindowLong(hWnd, GWLP_HINSTANCE),
 			nullptr);
 		SendMessage(buttonHwnd, WM_SETFONT, (LPARAM)hFont, TRUE);
-		SetClassLongPtr(buttonHwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(nullptr, IDC_HAND));
+		SetWindowSubclass(buttonHwnd, subclassButton, 0, 0);
+
 		closeHwnd = CreateWindow(
 			L"STATIC",
 			L"x",
 			WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_CENTER,
-			popup.Width - 25,
+			popup.Width - 20,
 			0,
-			20,
+			12,
 			20,
 			hWnd,
 			(HMENU)CLOSE_POPUP,
@@ -1184,32 +1264,6 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 			ShowWindow(hWnd, SW_HIDE);
 			break;
 		}
-		case ADDNOTE_POPUP:
-		{
-			const int len = GetWindowTextLength(contentHwnd) + 1;
-			wchar_t* text = new wchar_t[len];
-			GetWindowText(contentHwnd, text, len);
-			if (len > 1 || text[0] != L'\0')
-			{
-				size_t key{ DateHash(Date{DateJump().year, DateJump().month, clickedDay, -1}) };
-				if (allNoteContent.find(key) != allNoteContent.end())
-				{
-					allNoteContent[key].emplace_back(text);
-				}
-				else
-				{
-					allNoteContent.emplace(key, std::vector<std::wstring>{ text });
-				}
-				SetWindowText(contentHwnd, L"");
-
-				isPopup = false;
-				SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-				SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
-				ShowWindow(hWnd, SW_HIDE);
-			}
-			delete[] text;
-			break;
-		}
 		default:
 			break;
 		}
@@ -1217,40 +1271,17 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 	}
 	case WM_CTLCOLORSTATIC:
 	{
-		SetTextColor((HDC)wParam, RGB(255, 255, 255));
+		SetTextColor((HDC)wParam, 0xffffff);
 		SetBkMode((HDC)wParam, TRANSPARENT);
 		return (LRESULT)popupBackColor;
 	}
-	case WM_DRAWITEM:
-	{
-		LPDRAWITEMSTRUCT Item = reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
-
-		if (Item->hwndItem == buttonHwnd)
-		{
-			HBRUSH hBrush = CreateSolidBrush(RGB(0x0d, 0x47, 0xa1));
-			FillRect(Item->hDC, &Item->rcItem, hBrush);
-			DeleteObject(hBrush);
-
-			SetBkMode(Item->hDC, TRANSPARENT);
-			SetTextColor(Item->hDC, RGB(255, 255, 255));
-
-			int len = GetWindowTextLength(Item->hwndItem) + 1;
-			LPTSTR lpBuff = new TCHAR[len];
-			len = GetWindowText(Item->hwndItem, lpBuff, len);
-			DrawText(Item->hDC, lpBuff, len, &Item->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-			delete[] lpBuff;
-
-			return TRUE;
-		}
-		break;
-	}
 	case WM_SETFOCUS:
-	{
 		SetFocus(contentHwnd);
-	} break;
+		break;
 	case WM_DESTROY:
 	{
 		RemoveWindowSubclass(contentHwnd, subclassEdit, 0);
+		RemoveWindowSubclass(buttonHwnd, subclassButton, 0);
 		DeleteObject(hFont);
 		DeleteObject(popupBackColor);
 		PostQuitMessage(0);
@@ -1260,4 +1291,21 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
+}
+
+bool RegisterWndClass(std::wstring className, WNDPROC wndProc)
+{
+	WNDCLASS wincl{};
+	wincl.hInstance = GetModuleHandle(nullptr);
+	wincl.lpszClassName = className.c_str();
+	wincl.lpfnWndProc = wndProc;
+	wincl.style = CS_CLASSDC;
+	wincl.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+	wincl.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wincl.lpszMenuName = nullptr;
+	wincl.cbClsExtra = 0;
+	wincl.cbWndExtra = 0;
+	wincl.hbrBackground = nullptr;
+
+	return RegisterClass(&wincl);
 }
