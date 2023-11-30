@@ -197,7 +197,7 @@ void DrawWindow(HWND Handle)
 void DrawBase(Gdiplus::Graphics* g)
 {
 	std::unique_ptr<Gdiplus::GraphicsPath> path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 10);
+	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
 
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
 
@@ -466,7 +466,7 @@ void DrawNoteContent(Gdiplus::Graphics* g)
 		std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
 
 		int noteContentHeight = (10 + 16) * (int)noteContent.size();
-		thumb.Height = note.Height - 0.66f * noteContentHeight;
+		thumb.Height = note.Height - (32 + 10) - 0.3 * noteContentHeight;
 		if (thumb.Height < 40) thumb.Height = 40;
 		verticalScrollMaxValue = noteContentHeight - scrollbar.Height;
 		horizontalScrollMaxValue = 0;
@@ -604,16 +604,9 @@ int DaysInMonth(int year, int month)
 {
 	if (month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12) return 31;
 	else if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
-	else {
-		if (year % 4 == 0) {
-			if (year % 100 == 0) {
-				if (year % 400 == 0) return 29;
-				else return 28;
-			}
-			else return 29;
-		}
-		else return 28;
-	}
+	if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) return 29;
+	
+	return 28;
 }
 
 Date Today()
@@ -646,7 +639,8 @@ Date DateJump()
 		new_month = 12 + new_month % 12;
 	}
 
-	return ToDate(new_year, new_month, today.day);
+	int maximumDayInMonth = DaysInMonth(new_year, new_month);
+	return ToDate(new_year, new_month, today.day <= maximumDayInMonth ? today.day : maximumDayInMonth);
 }
 
 Date ToDate(int year, int month, int day)
@@ -696,12 +690,12 @@ void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius)
 	path->CloseFigure();
 }
 
-std::wstring Utf8ToWstr(const std::string& utf8) {
+static std::wstring Utf8ToWstr(const std::string& utf8) {
 	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> wcu8;
 	return wcu8.from_bytes(utf8);
 }
 
-std::string WstrToUtf8(const std::wstring& utf16) {
+static std::string WstrToUtf8(const std::wstring& utf16) {
 	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> wcu8;
 	return wcu8.to_bytes(utf16);
 }
@@ -831,14 +825,14 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 						{
 							if (zDelta > 0)
 							{
-								if (verticalScrollValue < 0)
+								if (verticalScrollValue + 10 < 0)
 									verticalScrollValue += 10;
 								else
 									verticalScrollValue = 0;
 							}
 							else if (zDelta < 0)
 							{
-								if (verticalScrollValue > -verticalScrollMaxValue)
+								if (verticalScrollValue - 10 > -verticalScrollMaxValue)
 									verticalScrollValue -= 10;
 								else
 									verticalScrollValue = -verticalScrollMaxValue;
@@ -944,6 +938,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 							if (clickedCell[0] != oldCell[0] || clickedCell[1] != oldCell[1]) {
 								clickedDay = clickedCell[0] + (clickedCell[1] - 2) * 7 - beginningEmptyCells + 1;
 								verticalScrollValue = 0;
+								verticalScrollMaxValue = 0;
 								horizontalScrollValue = 0;
 								SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 							}
@@ -1092,6 +1087,10 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 							SetWindowText(hWnd, L"");
 
 							isPopup = false;
+
+							if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
+								verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
+
 							SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 							SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
 							ShowWindow(GetParent(hWnd), SW_HIDE);
@@ -1181,6 +1180,10 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 						SetWindowText(contentHwnd, L"");
 
 						isPopup = false;
+
+						if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
+							verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
+
 						SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
 						ShowWindow(GetParent(hWnd), SW_HIDE);
