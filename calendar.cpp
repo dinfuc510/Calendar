@@ -72,8 +72,8 @@ Gdiplus::RectF titleBar{ 0, 0, windowSize.Width, exitWindow.GetBottom() + exitWi
 int MonthJump = 0;
 Gdiplus::RectF calendar{ 200, 30, 480, windowSize.Height - 40 };
 Gdiplus::SizeF cellSize{ calendar.Width / 7, calendar.Height / 8 };
-Gdiplus::RectF prevMonth{ calendar.X + calendar.Width / 2 - 100, calendar.Y, 30, 30 };
-Gdiplus::RectF nextMonth{ calendar.X + calendar.Width / 2 + 105 - prevMonth.Width, prevMonth.Y, prevMonth.Width, prevMonth.Height };
+Gdiplus::RectF prevMonth{ calendar.X, calendar.Y + 5, 24, 24 };
+Gdiplus::RectF nextMonth{ prevMonth.X + prevMonth.Width + 10, prevMonth.Y, prevMonth.Width, prevMonth.Height };
 Gdiplus::RectF note{ 10, 30, 150, windowSize.Height - 200 };
 Gdiplus::RectF scrollbar{ note.GetRight(), note.Y + (32 + 10), 8, note.Height - (32 + 10) };
 Gdiplus::RectF thumb{ scrollbar.X, scrollbar.Y, 8, 0 };
@@ -85,6 +85,7 @@ Gdiplus::RectF addbutton{ 10, note.GetBottom() + 20, note.Width, 40 };
 bool isPopup = false;
 
 std::unordered_map<size_t, std::vector<std::wstring>> allNoteContent;
+bool canSaveNoteContent = false;
 bool canMoveThumb = false;
 float verticalScrollValue = 0;
 float oldVerticalScrollValue = 0;
@@ -255,12 +256,20 @@ void DrawControlBox(Gdiplus::Graphics* g)
 
 void DrawChangeMonth(Gdiplus::Graphics* g)
 {
+	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(0xff3f3f3f);
+
+	g->FillEllipse(br.get(), prevMonth);
+	g->FillEllipse(br.get(), nextMonth);
+
+	br.reset();
+
 	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(0xffffffff, 2);
-	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 3, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + 2 * prevMonth.Width / 4, prevMonth.Y + prevMonth.Height / 4 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 3, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + 2 * prevMonth.Width / 4, prevMonth.Y + 3 * prevMonth.Height / 4 });
+
+	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
 	
-	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + 2 * nextMonth.Width / 4, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 3, nextMonth.Y + nextMonth.Height / 4 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + 2 * nextMonth.Width / 4, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 3, nextMonth.Y + 3 * nextMonth.Height / 4 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
+	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
 
 	p.reset();
 }
@@ -281,14 +290,18 @@ void DrawCalendarLabel(Gdiplus::Graphics* g)
 	std::unique_ptr<Gdiplus::Font>font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 20, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
 	std::unique_ptr<Gdiplus::StringFormat> fmt = std::make_unique<Gdiplus::StringFormat>();
-	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
+	fmt->SetAlignment(Gdiplus::StringAlignmentFar);
 	fmt->SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
-	std::wstring label = ToMonthName(dateJump.month) + L" " + std::to_wstring(dateJump.year);
-	g->DrawString(label.c_str(), -1, font.get(), Gdiplus::RectF{ 0, 0, calendar.Width, 20 * 96 / 72 },
+	g->DrawString(ToMonthName(dateJump.month).c_str(), -1, font.get(), Gdiplus::RectF{0, 0, calendar.Width / 2 + 20, 20 * 96 / 72},
 		fmt.get(), br.get());
 
+	fmt->SetAlignment(Gdiplus::StringAlignmentNear);
+	g->DrawString(std::to_wstring(dateJump.year).c_str(), -1, font.get(), Gdiplus::RectF{ calendar.Width / 2 + 20, 0, 100, 20 * 96 / 72},
+		fmt.get(), br.get());
+
+	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 	std::wstring dayOfWeek[7] = { L"Mon", L"Tue", L"Wed", L"Thu", L"Fri", L"Sat", L"Sun" };
 	for (int i = 0; i < 7; i++) {
 		g->DrawString(dayOfWeek[i].c_str(), -1, font.get(), Gdiplus::RectF{ i * cellSize.Width, cellSize.Height, cellSize.Width, 20 * 96 / 72 }, fmt.get(), br.get());
@@ -602,7 +615,7 @@ std::wstring ToMonthName(int month)
 
 int DaysInMonth(int year, int month)
 {
-	if (month == 1 || month == 3 || month == 5 || month == 7 || month == 8 || month == 10 || month == 12) return 31;
+	if ((month <= 7 && month & 1) || (month >= 8 && month % 2 == 0)) return 31;
 	else if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
 	if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) return 29;
 	
@@ -761,7 +774,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 	{
 		KillTimer(hWnd, ID_TIMER);
 		DestroyWindow(popupHwnd);
-		SaveNotes();
+		
+		if (canSaveNoteContent)
+			SaveNotes();
+		
 		PostQuitMessage(0);
 		break;
 	}
@@ -1087,6 +1103,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 							SetWindowText(hWnd, L"");
 
 							isPopup = false;
+							canSaveNoteContent = true;
 
 							if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
 								verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
@@ -1180,6 +1197,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 						SetWindowText(contentHwnd, L"");
 
 						isPopup = false;
+						canSaveNoteContent = true;
 
 						if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
 							verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
