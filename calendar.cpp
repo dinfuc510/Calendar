@@ -17,30 +17,30 @@
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 bool RegisterWndClass(std::wstring, WNDPROC);
 
-void DrawWindow(HWND Handle);
-void DrawBase(Gdiplus::Graphics* g);
-void DrawSysMenu(Gdiplus::Graphics* g);
-void DrawTitleBar(Gdiplus::Graphics* g);
-void DrawControlBox(Gdiplus::Graphics* g);
-void DrawCalendar(Gdiplus::Graphics* g);
-void DrawCalendarLabel(Gdiplus::Graphics* g);
-void DrawCalendarLabel2(Gdiplus::Graphics* g);
-void DrawToday(Gdiplus::Graphics* g);
-void DrawClickedCell(Gdiplus::Graphics* g);
-void DrawNotedCell(Gdiplus::Graphics* g);
-void DrawNote(Gdiplus::Graphics* g);
-void DrawNoteLabel(Gdiplus::Graphics* g);
-void DrawNoteContent(Gdiplus::Graphics* g);
-void DrawScrollbar(Gdiplus::Graphics* g);
-void DrawAddNote(Gdiplus::Graphics* g);
-void DrawChangeMonth(Gdiplus::Graphics* g);
-void DrawPopup(Gdiplus::Graphics* g);
-void DrawPopupShadow(Gdiplus::Graphics* g);
-void DrawPopupBorder(Gdiplus::Graphics* g);
+void DrawWindow(HWND);
+void DrawBase(Gdiplus::Graphics*);
+void DrawSysMenu(Gdiplus::Graphics*);
+void DrawTitleBar(Gdiplus::Graphics*);
+void DrawControlBox(Gdiplus::Graphics*);
+void DrawCalendar(Gdiplus::Graphics*);
+void DrawCalendarLabel(Gdiplus::Graphics*);
+void DrawCalendarLabel2(Gdiplus::Graphics*);
+void DrawToday(Gdiplus::Graphics*);
+void DrawClickedCell(Gdiplus::Graphics*);
+void DrawNotedCell(Gdiplus::Graphics*);
+void DrawNote(Gdiplus::Graphics*);
+void DrawNoteLabel(Gdiplus::Graphics*);
+void DrawNoteContent(Gdiplus::Graphics*);
+void DrawScrollbar(Gdiplus::Graphics*);
+void DrawAddNote(Gdiplus::Graphics*);
+void DrawChangeMonth(Gdiplus::Graphics*);
+void DrawPopup(Gdiplus::Graphics*);
+void DrawPopupShadow(Gdiplus::Graphics*);
+void DrawPopupBorder(Gdiplus::Graphics*);
 LRESULT CALLBACK PopupWindowProcedure(HWND, UINT, WPARAM, LPARAM);
-void CreatePopup(HWND& popupWindow, HWND parentWindow, HINSTANCE hInstance);
+void CreatePopup(HWND&, HWND, HINSTANCE);
 
-void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius);
+void RoundedRect(Gdiplus::GraphicsPath*, Gdiplus::RectF, int);
 void SaveNotes();
 void LoadNotes();
 
@@ -58,13 +58,13 @@ struct Date {
 	int day_of_week;
 };
 
-size_t DateHash(Date key);
+size_t DateHash(Date);
 Date Today();
 Date DateJump();
-Date ToDate(int year, int month, int day);
-std::wstring ToMonthName(int month);
-int DaysInMonth(int year, int month);
-int NotesInMonth(int year, int month);
+Date ToDate(int, int, int);
+std::wstring ToMonthName(int);
+int DaysInMonth(int, int);
+int NotesInMonth(int, int);
 
 Gdiplus::RectF exitWindow{ windowSize.Width - 25, 5, 20, 20 };
 Gdiplus::RectF minimizeWindow{ exitWindow.X - exitWindow.Width - 10, exitWindow.Y, exitWindow.Width, exitWindow.Height };
@@ -141,10 +141,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		CreatePopup(popupHwnd, windowHwnd, hInstance);
 		while (GetMessage(&messages, nullptr, 0, 0))
 		{
-			if (IsDialogMessage(windowHwnd, &messages) == 0) {
-				TranslateMessage(&messages);
-				DispatchMessage(&messages);
-			}
+			TranslateMessage(&messages);
+			DispatchMessage(&messages);
 		}
 	}
 	Gdiplus::GdiplusShutdown(gdiplusStartupToken);
@@ -827,16 +825,16 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 	}
 	case WM_MOUSEWHEEL:
 	{
-		if (verticalScrollMaxValue > 0)
+		POINT e;
+		if (GetCursorPos(&e))
 		{
-			POINT e;
-			if (GetCursorPos(&e))
+			if (ScreenToClient(hWnd, &e))
 			{
-				if (ScreenToClient(hWnd, &e))
+				short zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+				if (e.x >= note.X && e.x <= note.GetRight() && e.y >= note.Y && e.y <= note.GetBottom())
 				{
-					if (e.x >= note.X && e.x <= note.X + note.Width && e.y >= note.Y && e.y <= note.Y + note.Height)
+					if (verticalScrollMaxValue > 0)
 					{
-						short zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 						if (zDelta != 0)
 						{
 							if (zDelta > 0)
@@ -856,6 +854,31 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 
 							SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 						}
+					}
+				}
+				else if (e.x >= calendar.X && e.x <= calendar.GetRight() && e.y >= calendar.Y && e.y <= calendar.GetBottom())
+				{
+					if (zDelta != 0)
+					{
+						Date dateJump = DateJump();
+						//clickedCell[0] = clickedCell[1] = -1;
+						int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + ToDate(dateJump.year, dateJump.month, 1).day_of_week) % 7;
+						MonthJump += zDelta > 0 ? -12 : 12;
+						dateJump = DateJump();
+						int beginningEmptyCells = (6 + ToDate(dateJump.year, dateJump.month, 1).day_of_week) % 7;
+						int maximumDayOfMonth = DaysInMonth(dateJump.year, dateJump.month);
+						int cellPos = dayOfMonthOldYear;
+						if (dayOfMonthOldYear > maximumDayOfMonth)
+							cellPos = maximumDayOfMonth;
+						cellPos += beginningEmptyCells;
+
+						clickedCell[0] = (cellPos % 7 - 1 + 7) % 7;
+						clickedCell[1] = cellPos / 7 + 2 - (cellPos % 7 == 0);
+
+						verticalScrollValue = 0;
+						verticalScrollMaxValue = 0;
+						horizontalScrollValue = 0;
+						SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 					}
 				}
 			}
