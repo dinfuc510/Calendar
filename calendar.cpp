@@ -54,8 +54,8 @@ Gdiplus::SizeF windowSize = { 700, 500 };
 struct Date {
 	int year;
 	int month;
-	int day;
-	int day_of_week;
+	int mday;
+	int wday;
 };
 
 size_t DateHash(Date);
@@ -96,15 +96,15 @@ Gdiplus::PointF mouseLocation = { 0, 0 };
 Gdiplus::PointF oldMouseLocation = { 0, 0 };
 
 Date today = Today();
-int todayCell[2] = { ((today.day_of_week - 1) % 7 + 7) % 7, (today.day - 1 + (6 + ToDate(today.year, today.month, 1).day_of_week) % 7) / 7 + 2 };
+int todayCell[2] = { ((today.wday - 1) % 7 + 7) % 7, (today.mday - 1 + (6 + ToDate(today.year, today.month, 1).wday) % 7) / 7 + 2 };
 int clickedCell[2] = { todayCell[0], todayCell[1] };
-int clickedDay = today.day;
+int clickedDay = today.mday;
 
 Gdiplus::Color darkColor(0xf51e1e1e);
 Gdiplus::Color lightColor(0xffffffff);
 
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+int WINAPI wWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
 	_In_ LPWSTR    lpCmdLine,
 	_In_ int       nCmdShow)
@@ -117,20 +117,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	{
 		RegisterWndClass(L"TransparentDialog", WindowProcedure);
 
-		windowHwnd = CreateWindowEx(
-			WS_EX_LAYERED,
-			L"TransparentDialog",
-			L"Calendar",
-			WS_POPUP,
-			CW_USEDEFAULT,
-			CW_USEDEFAULT,
-			windowSize.Width,
-			windowSize.Height,
-			HWND_DESKTOP,
-			nullptr,
-			hInstance,
-			nullptr
-		);
+		windowHwnd = CreateWindowEx(WS_EX_LAYERED, L"TransparentDialog", L"Calendar", WS_POPUP,
+			CW_USEDEFAULT, CW_USEDEFAULT, windowSize.Width, windowSize.Height,
+			nullptr, nullptr, hInstance, nullptr);
 
 		LoadNotes();
 
@@ -318,7 +307,7 @@ void DrawCalendarLabel2(Gdiplus::Graphics* g)
 	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
-	int firstDayOfMonth = (dateJump.day_of_week - dateJump.day % 7 + 7) % 7;
+	int firstDayOfMonth = (dateJump.wday - dateJump.mday % 7 + 7) % 7;
 	int numberOfDays = DaysInMonth(dateJump.year, dateJump.month);
 	for (int i = 0; i < 7; i++)
 	{
@@ -350,14 +339,14 @@ void DrawToday(Gdiplus::Graphics* g)
 		fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 
 		Date new_date = ToDate(today.year, today.month, 1);
-		int row = (((int)today.day_of_week - 1) % 7 + 7) % 7;
-		int col = (today.day - 1 + (6 + new_date.day_of_week) % 7) / 7;
+		int row = (((int)today.wday - 1) % 7 + 7) % 7;
+		int col = (today.mday - 1 + (6 + new_date.wday) % 7) / 7;
 
 		Gdiplus::RectF bounds{ row * cellSize.Width, (col + 2) * cellSize.Height, cellSize.Width, cellSize.Height };
 		g->FillRectangle(br.get(), bounds);
 
 		std::unique_ptr<Gdiplus::SolidBrush> _br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-		g->DrawString(std::to_wstring(today.day).c_str(), -1, font.get(), bounds, fmt.get(), _br.get());
+		g->DrawString(std::to_wstring(today.mday).c_str(), -1, font.get(), bounds, fmt.get(), _br.get());
 
 		fmt.reset();
 		br.reset();
@@ -400,7 +389,7 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 {
 	Date dateJump = DateJump();
 	Date firstDayOfMonth = ToDate(dateJump.year, dateJump.month, 1);
-	int beginningEmptyCells = (6 + firstDayOfMonth.day_of_week) % 7;
+	int beginningEmptyCells = (6 + firstDayOfMonth.wday) % 7;
 	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>(Gdiplus::RectF{ 0, 0, cellSize.Width, cellSize.Height }, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
 	br.get()->SetGammaCorrection(TRUE);
 	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(br.get(), 4);
@@ -408,7 +397,7 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 	{
 		if (allNoteContent.find(DateHash({ dateJump.year, dateJump.month, i, -1 })) != allNoteContent.end())
 		{
-			int row = (((firstDayOfMonth.day_of_week - 1) % 7 + 7) % 7 + (i - 1)) % 7;
+			int row = (((firstDayOfMonth.wday - 1) % 7 + 7) % 7 + (i - 1)) % 7;
 			int col = (i - 1 + beginningEmptyCells) / 7 + 2;
 
 			g->DrawRectangle(p.get(), Gdiplus::RectF{ row * cellSize.Width, col * cellSize.Height, cellSize.Width, cellSize.Height });
@@ -651,12 +640,12 @@ Date DateJump()
 	}
 
 	int maximumDayInMonth = DaysInMonth(new_year, new_month);
-	return ToDate(new_year, new_month, today.day <= maximumDayInMonth ? today.day : maximumDayInMonth);
+	return ToDate(new_year, new_month, today.mday <= maximumDayInMonth ? today.mday : maximumDayInMonth);
 }
 
-Date ToDate(int year, int month, int day)
+Date ToDate(int year, int month, int mday)
 {
-	std::tm time_in = { 0, 0, 0, day, month - 1, year - 1900 };
+	std::tm time_in = { 0, 0, 0, mday, month - 1, year - 1900 };
 	std::time_t time_temp = std::mktime(&time_in);
 
 	struct tm new_date;
@@ -670,7 +659,7 @@ size_t DateHash(Date key)
 	std::tm curr{ 0 };
 	curr.tm_year = key.year - 1900;
 	curr.tm_mon = key.month - 1;
-	curr.tm_mday = key.day;
+	curr.tm_mday = key.mday;
 
 	return std::mktime(&curr);
 }
@@ -861,19 +850,21 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 					if (zDelta != 0)
 					{
 						Date dateJump = DateJump();
-						//clickedCell[0] = clickedCell[1] = -1;
-						int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + ToDate(dateJump.year, dateJump.month, 1).day_of_week) % 7;
 						MonthJump += zDelta > 0 ? -12 : 12;
-						dateJump = DateJump();
-						int beginningEmptyCells = (6 + ToDate(dateJump.year, dateJump.month, 1).day_of_week) % 7;
-						int maximumDayOfMonth = DaysInMonth(dateJump.year, dateJump.month);
-						int cellPos = dayOfMonthOldYear;
-						if (dayOfMonthOldYear > maximumDayOfMonth)
-							cellPos = maximumDayOfMonth;
-						cellPos += beginningEmptyCells;
+						if (clickedCell[0] != -1 && clickedCell[1] != -1)
+						{
+							int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + ToDate(dateJump.year, dateJump.month, 1).wday) % 7;
+							dateJump = DateJump();
+							int beginningEmptyCells = (6 + ToDate(dateJump.year, dateJump.month, 1).wday) % 7;
+							int maximumDayOfMonth = DaysInMonth(dateJump.year, dateJump.month);
+							int cellPos = dayOfMonthOldYear;
+							if (dayOfMonthOldYear > maximumDayOfMonth)
+								cellPos = maximumDayOfMonth;
+							cellPos += beginningEmptyCells;
 
-						clickedCell[0] = (cellPos % 7 - 1 + 7) % 7;
-						clickedCell[1] = cellPos / 7 + 2 - (cellPos % 7 == 0);
+							clickedCell[0] = (cellPos % 7 - 1 + 7) % 7;
+							clickedCell[1] = cellPos / 7 + 2 - (cellPos % 7 == 0);
+						}
 
 						verticalScrollValue = 0;
 						verticalScrollMaxValue = 0;
@@ -949,7 +940,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 							clickedCell[1] = (int)(pt.Y / cellSize.Height);
 							Date dateJump = DateJump();
 							Date new_date = ToDate(dateJump.year, dateJump.month, 1);
-							int beginningEmptyCells = (6 + new_date.day_of_week) % 7;
+							int beginningEmptyCells = (6 + new_date.wday) % 7;
 
 							if (clickedCell[0] >= 7)
 							{
