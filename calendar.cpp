@@ -45,20 +45,40 @@ void SaveNotes();
 void LoadNotes();
 
 constexpr auto ID_TIMER = 10000;
-constexpr auto CLOSE_POPUP = 10001;
-constexpr auto CONTENT_POPUP = 10002;
-constexpr auto ADDNOTE_POPUP = 10003;
 const std::string noteFile = "data.txt";
 Gdiplus::SizeF windowSize = { 700, 500 };
 
+int GaussAlgorithmForCalcWDay(int, int, int);
+
 struct Date {
-	int year;
-	int month;
-	int mday;
-	int wday;
+	size_t date;				//yyyyMMddd
+
+	Date(int year, int month, int day)
+	{
+		date = year * 100000 + month * 1000 + day * 10 + GaussAlgorithmForCalcWDay(year, month, day);
+	}
+
+	int GetYear() const
+	{
+		return date / 100000;
+	}
+	
+	int GetMonth() const
+	{
+		return (date / 1000) % 100;
+	}
+	
+	int GetMonthDay() const
+	{
+		return (date / 10) % 100;
+	}
+	
+	int GetWeekDay() const
+	{
+		return date % 10;
+	}
 };
 
-size_t DateHash(Date);
 Date Today();
 Date DateJump();
 Date ToDate(int, int, int);
@@ -80,7 +100,7 @@ Gdiplus::RectF thumb{ scrollbar.X, scrollbar.Y, 8, 0 };
 Gdiplus::RectF popup{ windowSize.Width / 2 - 200, windowSize.Height / 2 - 100, 400, 200 };
 HWND windowHwnd;
 HWND popupHwnd;
-Gdiplus::RectF addbutton{ 10, note.GetBottom() + 20, note.Width, 40 };
+Gdiplus::RectF addbutton{ note.X, note.GetBottom() + 20, note.Width + scrollbar.Width, 40 };
 
 bool isPopup = false;
 
@@ -96,9 +116,9 @@ Gdiplus::PointF mouseLocation = { 0, 0 };
 Gdiplus::PointF oldMouseLocation = { 0, 0 };
 
 Date today = Today();
-int todayCell[2] = { ((today.wday - 1) % 7 + 7) % 7, (today.mday - 1 + (6 + ToDate(today.year, today.month, 1).wday) % 7) / 7 + 2 };
+int todayCell[2] = { ((today.GetWeekDay() - 1) % 7 + 7) % 7, (today.GetMonthDay() - 1 + (6 + ToDate(today.GetYear(), today.GetMonth(), 1).GetWeekDay()) % 7) / 7 + 2 };
 int clickedCell[2] = { todayCell[0], todayCell[1] };
-int clickedDay = today.mday;
+int clickedDay = today.GetMonthDay();
 
 Gdiplus::Color darkColor(0xf51e1e1e);
 Gdiplus::Color lightColor(0xffffffff);
@@ -281,11 +301,11 @@ void DrawCalendarLabel(Gdiplus::Graphics* g)
 	fmt->SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
-	g->DrawString(ToMonthName(dateJump.month).c_str(), -1, font.get(), Gdiplus::RectF{0, 0, calendar.Width / 2 + 20, 20 * 96 / 72},
+	g->DrawString(ToMonthName(dateJump.GetMonth()).c_str(), -1, font.get(), Gdiplus::RectF{0, 0, calendar.Width / 2 + 20, 20 * 96 / 72},
 		fmt.get(), br.get());
 
 	fmt->SetAlignment(Gdiplus::StringAlignmentNear);
-	g->DrawString(std::to_wstring(dateJump.year).c_str(), -1, font.get(), Gdiplus::RectF{ calendar.Width / 2 + 20, 0, 100, 20 * 96 / 72},
+	g->DrawString(std::to_wstring(dateJump.GetYear()).c_str(), -1, font.get(), Gdiplus::RectF{ calendar.Width / 2 + 20, 0, 100, 20 * 96 / 72},
 		fmt.get(), br.get());
 
 	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
@@ -307,8 +327,8 @@ void DrawCalendarLabel2(Gdiplus::Graphics* g)
 	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
-	int firstDayOfMonth = (dateJump.wday - dateJump.mday % 7 + 7) % 7;
-	int numberOfDays = DaysInMonth(dateJump.year, dateJump.month);
+	int firstDayOfMonth = (dateJump.GetWeekDay() - dateJump.GetMonthDay() % 7 + 7) % 7;
+	int numberOfDays = DaysInMonth(dateJump.GetYear(), dateJump.GetMonth());
 	for (int i = 0; i < 7; i++)
 	{
 		for (int j = 0; j < 6; j++)
@@ -338,15 +358,15 @@ void DrawToday(Gdiplus::Graphics* g)
 		std::unique_ptr<Gdiplus::StringFormat> fmt = std::make_unique<Gdiplus::StringFormat>();
 		fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 
-		Date new_date = ToDate(today.year, today.month, 1);
-		int row = (((int)today.wday - 1) % 7 + 7) % 7;
-		int col = (today.mday - 1 + (6 + new_date.wday) % 7) / 7;
+		Date new_date = ToDate(today.GetYear(), today.GetMonth(), 1);
+		int row = (((int)today.GetWeekDay() - 1) % 7 + 7) % 7;
+		int col = (today.GetMonthDay() - 1 + (6 + new_date.GetWeekDay()) % 7) / 7;
 
 		Gdiplus::RectF bounds{ row * cellSize.Width, (col + 2) * cellSize.Height, cellSize.Width, cellSize.Height };
 		g->FillRectangle(br.get(), bounds);
 
 		std::unique_ptr<Gdiplus::SolidBrush> _br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-		g->DrawString(std::to_wstring(today.mday).c_str(), -1, font.get(), bounds, fmt.get(), _br.get());
+		g->DrawString(std::to_wstring(today.GetMonthDay()).c_str(), -1, font.get(), bounds, fmt.get(), _br.get());
 
 		fmt.reset();
 		br.reset();
@@ -388,16 +408,16 @@ void DrawClickedCell(Gdiplus::Graphics* g)
 void DrawNotedCell(Gdiplus::Graphics* g)
 {
 	Date dateJump = DateJump();
-	Date firstDayOfMonth = ToDate(dateJump.year, dateJump.month, 1);
-	int beginningEmptyCells = (6 + firstDayOfMonth.wday) % 7;
+	Date firstDayOfMonth = ToDate(dateJump.GetYear(), dateJump.GetMonth(), 1);
+	int beginningEmptyCells = (6 + firstDayOfMonth.GetWeekDay()) % 7;
 	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>(Gdiplus::RectF{ 0, 0, cellSize.Width, cellSize.Height }, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
 	br.get()->SetGammaCorrection(TRUE);
 	std::unique_ptr<Gdiplus::Pen> p = std::make_unique<Gdiplus::Pen>(br.get(), 4);
-	for (int i = 1; i <= DaysInMonth(dateJump.year, dateJump.month); i++)
+	for (int i = 1; i <= DaysInMonth(dateJump.GetYear(), dateJump.GetMonth()); i++)
 	{
-		if (allNoteContent.find(DateHash({ dateJump.year, dateJump.month, i, -1 })) != allNoteContent.end())
+		if (allNoteContent.find(Date{ dateJump.GetYear(), dateJump.GetMonth(), i }.date) != allNoteContent.end())
 		{
-			int row = (((firstDayOfMonth.wday - 1) % 7 + 7) % 7 + (i - 1)) % 7;
+			int row = (((firstDayOfMonth.GetWeekDay() - 1) % 7 + 7) % 7 + (i - 1)) % 7;
 			int col = (i - 1 + beginningEmptyCells) / 7 + 2;
 
 			g->DrawRectangle(p.get(), Gdiplus::RectF{ row * cellSize.Width, col * cellSize.Height, cellSize.Width, cellSize.Height });
@@ -425,7 +445,7 @@ void DrawNoteLabel(Gdiplus::Graphics* g)
 
 	if (clickedCell[0] == -1)
 	{
-		int numberOfNotes = NotesInMonth(DateJump().year, DateJump().month);
+		int numberOfNotes = NotesInMonth(DateJump().GetYear(), DateJump().GetMonth());
 		label = L"You have ";
 		label += std::to_wstring(numberOfNotes);
 		label += L" note(s)";
@@ -441,7 +461,7 @@ void DrawNoteLabel(Gdiplus::Graphics* g)
 			label = L"Today";
 		else {
 			label = std::to_wstring(clickedDay) + L"/";
-			label += std::to_wstring(DateJump().month);
+			label += std::to_wstring(DateJump().GetMonth());
 		}
 		g->DrawString(label.c_str(), -1, font.get(), Gdiplus::PointF{ 0, 0 }, br.get());
 		font.reset();
@@ -458,7 +478,7 @@ void DrawNoteContent(Gdiplus::Graphics* g)
 
 	if (clickedCell[0] == -1) return;
 
-	size_t key{ DateHash(Date{DateJump().year, DateJump().month, clickedDay, -1}) };
+	size_t key{ Date{DateJump().GetYear(), DateJump().GetMonth(), clickedDay}.date };
 	if (allNoteContent.find(key) != allNoteContent.end())
 	{
 		std::vector<std::wstring> noteContent{ allNoteContent[key] };
@@ -509,18 +529,16 @@ void DrawScrollbar(Gdiplus::Graphics* g)
 
 void DrawAddNote(Gdiplus::Graphics* g)
 {
-	std::unique_ptr<Gdiplus::Font>font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(clickedCell[0] != -1 ? 0xff808080 : 0x33808080));
 
 	g->FillRectangle(br.get(), addbutton);
+	br.reset();
+
+	std::unique_ptr<Gdiplus::Font>font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	Gdiplus::RectF boundsText;
 	g->MeasureString(L"Add Note", 8, font.get(), addbutton, &boundsText);
-	br.reset();
 	br = std::make_unique<Gdiplus::SolidBrush>(clickedCell[0] != -1 ? lightColor : 0x33ffffff);
-	g->DrawString(
-		L"Add Note",
-		8,
-		font.get(),
+	g->DrawString(L"Add Note", 8, font.get(),
 		Gdiplus::PointF{ addbutton.X + addbutton.Width / 2 - boundsText.Width / 2, addbutton.Y + addbutton.Height / 2 - boundsText.Height / 2 },
 		br.get());
 
@@ -530,16 +548,16 @@ void DrawAddNote(Gdiplus::Graphics* g)
 
 void DrawPopup(Gdiplus::Graphics* g)
 {
+	if (!isPopup)
+		return;
 	DrawPopupShadow(g);
 	DrawPopupBorder(g);
 }
 
 void DrawPopupShadow(Gdiplus::Graphics* g)
 {
-	if (!isPopup) return;
-
 	std::unique_ptr<Gdiplus::GraphicsPath> path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 10);
+	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 6);
 
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(100, 0, 0, 0));
 
@@ -550,11 +568,11 @@ void DrawPopupShadow(Gdiplus::Graphics* g)
 	path.reset();
 	br.reset();
 
-	for (int i = popup.X - 40; i < popup.X; i += 3)
+	for (int i = popup.X - 40; i < popup.X; i += 2)
 	{
 		path = std::make_unique<Gdiplus::GraphicsPath>();
 		br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color((i - (popup.X - 40)) / 2, 0, 0, 0));
-		RoundedRect(path.get(), Gdiplus::RectF(i, i, windowSize.Width - i * 2, windowSize.Height - i * 2), 40);
+		RoundedRect(path.get(), Gdiplus::RectF(i, i, windowSize.Width - i * 2, windowSize.Height - i * 2), 30);
 
 		g->FillPath(br.get(), path.get());
 
@@ -565,30 +583,24 @@ void DrawPopupShadow(Gdiplus::Graphics* g)
 
 void DrawPopupBorder(Gdiplus::Graphics* g)
 {
-	if (!isPopup) return;
-
 	std::unique_ptr<Gdiplus::GraphicsPath> path = std::make_unique<Gdiplus::GraphicsPath>();
 	RoundedRect(
 		path.get(),
-		Gdiplus::RectF(
-			popup.X, popup.Y,
-			popup.Width,
-			popup.Height
-		),
-		10);
+		Gdiplus::RectF(popup.X, popup.Y, popup.Width, popup.Height),
+		6);
 
 	std::unique_ptr<Gdiplus::SolidBrush> br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
 	g->FillPath(br.get(), path.get());
 	br.reset();
 	path.reset();
 
-	float padding = 10;
+	float padding = 6;
 	br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(0xffffffff));
 	path = std::make_unique<Gdiplus::GraphicsPath>();
 	RoundedRect(path.get(), Gdiplus::RectF{ popup.X + popup.Width / 2 - 200 / 2 - padding,
-		popup.Y + popup.Height / 2 - 40 / 2 - 4,
+		popup.Y + popup.Height / 2 - 40 / 2 - padding,
 		200 + padding * 2,
-		24 + 4 * 2 }, 12);
+		24 + padding * 2 }, padding);
 	g->FillPath(br.get(), path.get());
 	path.reset();
 	br.reset();
@@ -614,7 +626,7 @@ Date Today()
 	std::unique_ptr<std::time_t> t = std::make_unique<std::time_t>(std::time(0));
 	struct tm now;
 	localtime_s(&now, t.get());
-	Date today{ now.tm_year + 1900, now.tm_mon + 1, now.tm_mday, now.tm_wday };
+	Date today{ now.tm_year + 1900, now.tm_mon + 1, now.tm_mday };
 
 	t.reset();
 	return today;
@@ -622,7 +634,7 @@ Date Today()
 
 Date DateJump()
 {
-	int new_month = today.month + MonthJump, new_year = today.year;
+	int new_month = today.GetMonth() + MonthJump, new_year = today.GetYear();
 	if (new_month > 12)
 	{
 		new_year += new_month / 12;
@@ -640,28 +652,21 @@ Date DateJump()
 	}
 
 	int maximumDayInMonth = DaysInMonth(new_year, new_month);
-	return ToDate(new_year, new_month, today.mday <= maximumDayInMonth ? today.mday : maximumDayInMonth);
+	return ToDate(new_year, new_month, today.GetMonthDay() <= maximumDayInMonth ? today.GetMonthDay() : maximumDayInMonth);
+}
+
+int GaussAlgorithmForCalcWDay(int year, int month, int mday)
+{
+	int offsets[12] = { 0, 3, 3, 6, 1, 4, 6, 2, 5, 0, 3, 5 };
+	int offset = offsets[month - 1];
+	if (month > 2 && (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)))
+		offset = (offset + 1) % 7;
+	return (mday + offset + 5 * ((year - 1) % 4) + 4 * ((year - 1) % 100) + 6 * ((year - 1) % 400)) % 7;
 }
 
 Date ToDate(int year, int month, int mday)
 {
-	std::tm time_in = { 0, 0, 0, mday, month - 1, year - 1900 };
-	std::time_t time_temp = std::mktime(&time_in);
-
-	struct tm new_date;
-	localtime_s(&new_date, &time_temp);
-
-	return Date{ new_date.tm_year + 1900, new_date.tm_mon + 1, new_date.tm_mday, new_date.tm_wday };
-}
-
-size_t DateHash(Date key)
-{
-	std::tm curr{ 0 };
-	curr.tm_year = key.year - 1900;
-	curr.tm_mon = key.month - 1;
-	curr.tm_mday = key.mday;
-
-	return std::mktime(&curr);
+	return Date{ year, month, mday };
 }
 
 int NotesInMonth(int year, int month)
@@ -669,7 +674,7 @@ int NotesInMonth(int year, int month)
 	int count = 0;
 	for (int i = 1; i <= 31; i++)
 	{
-		size_t key{ DateHash(Date{year, month, i, -1}) };
+		size_t key{ Date{year, month, i}.date };
 		if (allNoteContent.find(key) != allNoteContent.end()) count++;
 	}
 
@@ -853,10 +858,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 						MonthJump += zDelta > 0 ? -12 : 12;
 						if (clickedCell[0] != -1 && clickedCell[1] != -1)
 						{
-							int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + ToDate(dateJump.year, dateJump.month, 1).wday) % 7;
+							int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + ToDate(dateJump.GetYear(), dateJump.GetMonth(), 1).GetWeekDay()) % 7;
 							dateJump = DateJump();
-							int beginningEmptyCells = (6 + ToDate(dateJump.year, dateJump.month, 1).wday) % 7;
-							int maximumDayOfMonth = DaysInMonth(dateJump.year, dateJump.month);
+							int beginningEmptyCells = (6 + ToDate(dateJump.GetYear(), dateJump.GetMonth(), 1).GetWeekDay()) % 7;
+							int maximumDayOfMonth = DaysInMonth(dateJump.GetYear(), dateJump.GetMonth());
 							int cellPos = dayOfMonthOldYear;
 							if (dayOfMonthOldYear > maximumDayOfMonth)
 								cellPos = maximumDayOfMonth;
@@ -939,8 +944,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 							clickedCell[0] = (int)(pt.X / cellSize.Width);
 							clickedCell[1] = (int)(pt.Y / cellSize.Height);
 							Date dateJump = DateJump();
-							Date new_date = ToDate(dateJump.year, dateJump.month, 1);
-							int beginningEmptyCells = (6 + new_date.wday) % 7;
+							Date new_date = ToDate(dateJump.GetYear(), dateJump.GetMonth(), 1);
+							int beginningEmptyCells = (6 + new_date.GetWeekDay()) % 7;
 
 							if (clickedCell[0] >= 7)
 							{
@@ -956,7 +961,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 								}
 								else
 								{
-									int endEmptyCells = beginningEmptyCells + DaysInMonth(dateJump.year, dateJump.month);
+									int endEmptyCells = beginningEmptyCells + DaysInMonth(dateJump.GetYear(), dateJump.GetMonth());
 									if (clickedCell[0] + (clickedCell[1] - 2) * 7 >= endEmptyCells)
 									{
 										clickedCell[0] = oldCell[0];
@@ -1060,20 +1065,9 @@ void CreatePopup(HWND& popupWindow, HWND parentWindow, HINSTANCE hInstance)
 {
 	RegisterWndClass(L"Popup", PopupWindowProcedure);
 
-	popupWindow = CreateWindowEx(
-		WS_EX_TOPMOST,
-		L"Popup",
-		L"Popup",
-		WS_POPUP,
-		windowSize.Width / 2 - popup.Width / 2,
-		windowSize.Height / 2 - popup.Height / 2,
-		popup.Width,
-		popup.Height,
-		HWND_DESKTOP,
-		nullptr,
-		hInstance,
-		nullptr
-	);
+	popupWindow = CreateWindowEx(WS_EX_TOPMOST, L"Popup", L"Popup", WS_POPUP,
+		windowSize.Width / 2 - popup.Width / 2, windowSize.Height / 2 - popup.Height / 2, popup.Width, popup.Height,
+		HWND_DESKTOP, nullptr, hInstance, nullptr);
 	SetWindowLongPtr(popupWindow, -8, (LONG)parentWindow);
 
 	ShowWindow(popupWindow, SW_HIDE);
@@ -1081,11 +1075,12 @@ void CreatePopup(HWND& popupWindow, HWND parentWindow, HINSTANCE hInstance)
 
 LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	static HWND contentHwnd;
-	static HWND buttonHwnd;
-	static HWND closeHwnd;
+	static constexpr int CLOSE_POPUP = 10001;
+	static constexpr int CONTENT_POPUP = 10002;
+	static constexpr int ADDNOTE_POPUP = 10003;
+	static HWND contentHwnd, buttonHwnd, closeHwnd;
 	static SUBCLASSPROC subclassEdit;
-	static SUBCLASSPROC subclassButton;
+	static WNDPROC buttonWndProc;
 	static HFONT hFont = CreateFont(24, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
 	static HBRUSH popupBackColor = CreateSolidBrush(0x1e1e1e);
 	switch (message)
@@ -1093,7 +1088,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 	case WM_CREATE:
 	{
 		subclassEdit = [](HWND hWnd, UINT uMsg, WPARAM wParam,
-			LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) -> LRESULT {
+			LPARAM lParam, UINT_PTR, DWORD_PTR) -> LRESULT {
 				switch (uMsg)
 				{
 				case WM_KEYDOWN:
@@ -1105,7 +1100,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 						GetWindowText(hWnd, text, len);
 						if (len > 1 || text[0] != L'\0')
 						{
-							size_t key{ DateHash(Date{DateJump().year, DateJump().month, clickedDay, -1}) };
+							size_t key{ Date{DateJump().GetYear(), DateJump().GetMonth(), clickedDay }.date };
 							if (allNoteContent.find(key) != allNoteContent.end())
 							{
 								allNoteContent[key].emplace_back(text);
@@ -1134,8 +1129,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 				}
 				return 0;
 			};
-		subclassButton = [](HWND hWnd, UINT uMsg, WPARAM wParam,
-			LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData) -> LRESULT {
+		buttonWndProc = [](HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) -> LRESULT {
 				static bool isMouseDown = false;
 				static bool isMouseLeave = true;
 				switch (uMsg)
@@ -1156,7 +1150,6 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 					SetBkMode(hdc, TRANSPARENT);
 					SetTextColor(hdc, 0xffffff);
 
-					HFONT hFont = (HFONT)SendMessage(hWnd, WM_GETFONT, 0, 0);
 					SelectObject(hdc, hFont);
 					int len = GetWindowTextLength(hWnd) + 1;
 					LPTSTR lpBuff = new TCHAR[len];
@@ -1199,15 +1192,11 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 					GetWindowText(contentHwnd, text, len);
 					if (len > 1 || text[0] != L'\0')
 					{
-						size_t key{ DateHash(Date{DateJump().year, DateJump().month, clickedDay, -1}) };
+						size_t key{ Date{DateJump().GetYear(), DateJump().GetMonth(), clickedDay }.date };
 						if (allNoteContent.find(key) != allNoteContent.end())
-						{
 							allNoteContent[key].emplace_back(text);
-						}
 						else
-						{
 							allNoteContent.emplace(key, std::vector<std::wstring>{ text });
-						}
 						SetWindowText(contentHwnd, L"");
 
 						isPopup = false;
@@ -1227,61 +1216,32 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 				{
 					InvalidateRect(hWnd, nullptr, FALSE);
 					KillTimer(hWnd, wParam);
-
-					return 0;
 				} break;
 				case WM_SETCURSOR:
 					SetCursor(LoadCursor(nullptr, IDC_HAND));
 					break;
 				default:
-					return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+					return DefWindowProc(hWnd, uMsg, wParam, lParam);
 				}
 				return 0;
 			};
 
-		contentHwnd = CreateWindow(
-			L"EDIT",
-			L"",
-			WS_VISIBLE | WS_CHILD | ES_AUTOHSCROLL,
-			popup.Width / 2 - 200 / 2,
-			popup.Height / 2 - 40 / 2,
-			200,
-			24,
-			hWnd,
-			(HMENU)CONTENT_POPUP,
-			GetModuleHandle(nullptr),
-			nullptr);
+		contentHwnd = CreateWindow(L"EDIT", L"", WS_VISIBLE | WS_CHILD | ES_AUTOHSCROLL,
+			popup.Width / 2 - 200 / 2, popup.Height / 2 - 40 / 2, 200, 24,
+			hWnd, (HMENU)CONTENT_POPUP, GetModuleHandle(nullptr), nullptr);
 		SendMessage(contentHwnd, WM_SETFONT, (LPARAM)hFont, TRUE);
 		SendMessage(contentHwnd, EM_SETCUEBANNER, 1, (LPARAM)L"Write your note");
 		SetWindowSubclass(contentHwnd, subclassEdit, 0, 0);
 
-		buttonHwnd = CreateWindow(
-			L"BUTTON",
-			L"Add Note",
-			WS_VISIBLE | WS_CHILD | BS_OWNERDRAW,
-			popup.Width / 2 - 100 / 2,
-			popup.Height - 50,
-			100,
-			30,
-			hWnd,
-			(HMENU)ADDNOTE_POPUP,
-			(HINSTANCE)GetWindowLong(hWnd, GWLP_HINSTANCE),
-			nullptr);
+		RegisterWndClass(L"PopupButton", buttonWndProc);
+		buttonHwnd = CreateWindow(L"PopupButton", L"Add Note", WS_VISIBLE | WS_CHILD | BS_OWNERDRAW,
+			popup.Width / 2 - 100 / 2, popup.Height - 50, 100, 30,
+			hWnd, (HMENU)ADDNOTE_POPUP, (HINSTANCE)GetWindowLong(hWnd, GWLP_HINSTANCE), nullptr);
 		SendMessage(buttonHwnd, WM_SETFONT, (LPARAM)hFont, TRUE);
-		SetWindowSubclass(buttonHwnd, subclassButton, 0, 0);
 
-		closeHwnd = CreateWindow(
-			L"STATIC",
-			L"x",
-			WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_CENTER,
-			popup.Width - 20,
-			0,
-			12,
-			20,
-			hWnd,
-			(HMENU)CLOSE_POPUP,
-			GetModuleHandle(nullptr),
-			nullptr);
+		closeHwnd = CreateWindow(L"STATIC", L"x", WS_VISIBLE | WS_CHILD | SS_NOTIFY | SS_CENTER,
+			popup.Width - 20, 0, 12, 20,
+			hWnd, (HMENU)CLOSE_POPUP, GetModuleHandle(nullptr), nullptr);
 		SendMessage(closeHwnd, WM_SETFONT, (LPARAM)hFont, TRUE);
 		SetClassLongPtr(closeHwnd, GCLP_HCURSOR, (LONG_PTR)LoadCursor(nullptr, IDC_HAND));
 
@@ -1316,7 +1276,6 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 	case WM_DESTROY:
 	{
 		RemoveWindowSubclass(contentHwnd, subclassEdit, 0);
-		RemoveWindowSubclass(buttonHwnd, subclassButton, 0);
 		DeleteObject(hFont);
 		DeleteObject(popupBackColor);
 		PostQuitMessage(0);
