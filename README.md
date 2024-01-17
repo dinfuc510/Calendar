@@ -1,9 +1,11 @@
 # Build
 Requirement:
 -    Windows SDK + MSVC compiler
--    MinGW compiler (an alternative to MSVC compiler, require for cross compilation from Linux to Windows)
+-    MinGW compiler (an alternative to MSVC compiler, required for cross compilation from Linux to Windows)
 -    Wine (only for cross compilation from Linux to Windows)
-  
+
+Install dependencies on Debian-based distros:
+
     sudo apt install g++-mingw-w64-x86-64
     sudo apt install wine wine64
 ### Windows MSVC
