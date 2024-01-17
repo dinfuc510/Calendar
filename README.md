@@ -1,6 +1,15 @@
-# Compiling:
+# Build
+Requirement:
+-    Windows SDK + MSVC compiler
+-    MinGW compiler (an alternative to MSVC compiler, require for cross compilation from Linux to Windows)
+-    Wine (only for cross compilation from Linux to Windows)
+  
+    sudo apt install g++-mingw-w64-x86-64
+    sudo apt install wine wine64
+### Windows MSVC
+    cl calendar.cpp /nologo /Zi /MD /Ox /link user32.lib gdi32.lib
+### MinGW
+    g++ calendar.cpp -o calendar.exe -O3 -luser32 -lgdi32 -mwindows
+Use Wine to run
 
-### MinGW (target: x86_64-w64-mingw32)
-    g++ -o calendar.exe calendar.cpp -luser32 -lgdi32 -lgdiplus -lcomctl32 -std=c++14 -DUNICODE -fpermissive -static -mwindows
-### MSVC
-    cl .\calendar.cpp /nologo /Zi /MD /D UNICODE /link user32.lib gdi32.lib gdiplus.lib comctl32.lib
+    wine ./calendar.exe
