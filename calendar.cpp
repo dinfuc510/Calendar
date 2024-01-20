@@ -47,14 +47,12 @@ constexpr auto ID_TIMER = 10000;
 const std::string noteFile = "note.txt";
 Gdiplus::SizeF windowSize = { 700, 500 };
 
-int GaussAlgorithmForCalcWDay(int, int, int);
-
 struct Date {
 	size_t date;				//yyyyMMddd
 
 	Date(int year, int month, int day)
 	{
-		date = year * 100000 + month * 1000 + day * 10 + GaussAlgorithmForCalcWDay(year, month, day);
+		date = year * 100000 + month * 1000 + day * 10;
 	}
 
 	int GetYear() const
@@ -74,7 +72,12 @@ struct Date {
 
 	int GetWeekDay() const
 	{
-		return date % 10;
+		int year = GetYear(), month = GetMonth(), mday = GetMonthDay();
+		int offsets[12] = { 0, 3, 3, 6, 1, 4, 6, 2, 5, 0, 3, 5 };
+		int offset = offsets[month - 1];
+		if (month > 2 && (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)))
+			offset = (offset + 1) % 7;
+		return (mday + offset + 5 * ((year - 1) % 4) + 4 * ((year - 1) % 100) + 6 * ((year - 1) % 400)) % 7;
 	}
 };
 
@@ -362,7 +365,7 @@ void DrawToday(Gdiplus::Graphics* g)
 		std::unique_ptr<Gdiplus::StringFormat> fmt = std::make_unique<Gdiplus::StringFormat>();
 		fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
 
-		int firstDayOfMonth = GaussAlgorithmForCalcWDay(today.GetYear(), today.GetMonth(), 1);
+		int firstDayOfMonth = Date{ today.GetYear(), today.GetMonth(), 1 }.GetWeekDay();
 		int row = (((int)today.GetWeekDay() - 1) % 7 + 7) % 7;
 		int col = (today.GetMonthDay() - 1 + (6 + firstDayOfMonth) % 7) / 7;
 
@@ -412,7 +415,7 @@ void DrawClickedCell(Gdiplus::Graphics* g)
 void DrawNotedCell(Gdiplus::Graphics* g)
 {
 	Date dateJump = DateJump();
-	int firstDayOfMonth = GaussAlgorithmForCalcWDay(dateJump.GetYear(), dateJump.GetMonth(), 1);
+	int firstDayOfMonth = Date{ dateJump.GetYear(), dateJump.GetMonth(), 1 }.GetWeekDay();
 	int beginningEmptyCells = (6 + firstDayOfMonth) % 7;
 	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>(Gdiplus::RectF{ 0, 0, cellSize.Width, cellSize.Height }, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
 	br.get()->SetGammaCorrection(TRUE);
@@ -659,15 +662,6 @@ Date DateJump()
 	return Date{ new_year, new_month, today.GetMonthDay() <= maximumDayInMonth ? today.GetMonthDay() : maximumDayInMonth };
 }
 
-int GaussAlgorithmForCalcWDay(int year, int month, int mday)
-{
-	int offsets[12] = { 0, 3, 3, 6, 1, 4, 6, 2, 5, 0, 3, 5 };
-	int offset = offsets[month - 1];
-	if (month > 2 && (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)))
-		offset = (offset + 1) % 7;
-	return (mday + offset + 5 * ((year - 1) % 4) + 4 * ((year - 1) % 100) + 6 * ((year - 1) % 400)) % 7;
-}
-
 int NotesInMonth(int year, int month)
 {
 	int count = 0;
@@ -857,9 +851,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 						MonthJump += zDelta > 0 ? -12 : 12;
 						if (clickedCell[0] != -1 && clickedCell[1] != -1)
 						{
-							int firstDayOfMonth = GaussAlgorithmForCalcWDay(dateJump.GetYear(), dateJump.GetMonth(), 1);
+							int firstDayOfMonth = Date{ dateJump.GetYear(), dateJump.GetMonth(), 1 }.GetWeekDay();
 							int dayOfMonthOldYear = clickedCell[0] + (clickedCell[1] - 2) * 7 + 1 - (6 + firstDayOfMonth) % 7;
 							dateJump = DateJump();
+							firstDayOfMonth = Date{ dateJump.GetYear(), dateJump.GetMonth(), 1 }.GetWeekDay();
 							int beginningEmptyCells = (6 + firstDayOfMonth) % 7;
 							int maximumDayOfMonth = DaysInMonth(dateJump.GetYear(), dateJump.GetMonth());
 							int cellPos = dayOfMonthOldYear;
@@ -942,7 +937,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 							clickedCell[0] = (int)(pt.X / cellSize.Width);
 							clickedCell[1] = (int)(pt.Y / cellSize.Height);
 							Date dateJump = DateJump();
-							int firstDayOfMonth = GaussAlgorithmForCalcWDay(dateJump.GetYear(), dateJump.GetMonth(), 1);
+							int firstDayOfMonth = Date{ dateJump.GetYear(), dateJump.GetMonth(), 1 }.GetWeekDay();
 							int beginningEmptyCells = (6 + firstDayOfMonth) % 7;
 
 							if (clickedCell[0] >= 7)
