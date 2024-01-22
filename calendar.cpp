@@ -7,8 +7,6 @@
 #include <vector>
 #include <unordered_map>
 #include <fstream>
-#include <locale>
-#include <codecvt>
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -48,26 +46,26 @@ const std::string noteFile = "note.txt";
 Gdiplus::SizeF windowSize = { 700, 500 };
 
 struct Date {
-	size_t date;				//yyyyMMddd
+	size_t date;				//yyyyMMdd
 
 	Date(int year, int month, int day)
 	{
-		date = year * 100000 + month * 1000 + day * 10;
+		date = year * 10000 + month * 100 + day;
 	}
 
 	int GetYear() const
 	{
-		return date / 100000;
+		return date / 10000;
 	}
 
 	int GetMonth() const
 	{
-		return (date / 1000) % 100;
+		return (date / 100) % 100;
 	}
 
 	int GetMonthDay() const
 	{
-		return (date / 10) % 100;
+		return date % 100;
 	}
 
 	int GetWeekDay() const
@@ -688,14 +686,18 @@ void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius)
 	path->CloseFigure();
 }
 
+//https://stackoverflow.com/questions/6693010/how-do-i-use-multibytetowidechar
 static std::wstring Utf8ToWstr(const std::string& utf8) {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> wcu8;
-	return wcu8.from_bytes(utf8);
+	int count = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), utf8.length(), nullptr, 0);
+	std::wstring wstr(count, 0);
+	MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), utf8.length(), &wstr[0], count);
+	return wstr;
 }
-
 static std::string WstrToUtf8(const std::wstring& utf16) {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> wcu8;
-	return wcu8.to_bytes(utf16);
+	int count = WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), utf16.length(), nullptr, 0, nullptr, nullptr);
+	std::string str(count, 0);
+	WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, &str[0], count, nullptr, nullptr);
+	return str;
 }
 
 void LoadNotes()
@@ -733,14 +735,11 @@ void SaveNotes()
 {
 	std::ofstream ofs{ noteFile, std::ios::out };
 
-	if (ofs.is_open())
-	{
-		for (const auto& notes : allNoteContent)
-		{
+	if (ofs.is_open()) {
+		for (const auto& notes : allNoteContent) {
 			ofs << notes.first << ":";
 
-			for (const std::wstring& s : notes.second)
-			{
+			for (const std::wstring& s : notes.second) {
 				ofs << WstrToUtf8(s) << "\u200b";
 			}
 
