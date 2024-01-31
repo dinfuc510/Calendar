@@ -30,6 +30,7 @@
 //#define NOCTLMGR
 #define NOMETAFILE
 #define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
 #include <Windows.h>
 #include <ctime>
 
@@ -44,7 +45,7 @@
 #define WINDOW_HEIGHT 500
 #define TITLEBAR_HEIGHT 32
 
-#define CALENDAR_POS_X 10
+#define CALENDAR_POS_X 200
 #define CALENDAR_POS_Y (TITLEBAR_HEIGHT + WINDOW_HEIGHT / 16 + 4)
 #define CALENDAR_WIDTH (WINDOW_WIDTH - CALENDAR_POS_X)
 #define CALENDAR_HEIGHT (WINDOW_HEIGHT - CALENDAR_POS_Y)
@@ -75,37 +76,27 @@ static std::chrono::high_resolution_clock timer;
 static auto start = timer.now();
 #endif // _DEBUG
 struct Date {
-	size_t date;
+	size_t date = 0;
 
-	Date() : date{ 0 } {}
-
-	Date(size_t d)
-	{
+	Date(size_t d) {
 		date = d;
 	}
-
-	Date(int year, int month, int day)
-	{
-		date = (size_t)(year * 100000 + month * 1000 + day * 10);
+	Date(int year, int month, int day) {
+		date = (size_t)(year * 10000 + month * 100 + day);
+	}
+	int GetYear() const {
+		return (int)(date / 10000);
 	}
 
-	int GetYear() const
-	{
-		return (int)(date / 100000);
+	int GetMonth() const {
+		return (date / 100) % 100;
 	}
 
-	int GetMonth() const
-	{
-		return (date / 1000) % 100;
+	int GetMonthDay() const {
+		return date % 100;
 	}
 
-	int GetMonthDay() const
-	{
-		return (date / 10) % 100;
-	}
-
-	int GetWeekDay() const
-	{
+	int GetWeekDay() const {
 		//	Gauss's algorithm
 		int year = GetYear(), month = GetMonth(), mday = GetMonthDay();
 		int offsets[12] = { 0, 3, 3, 6, 1, 4, 6, 2, 5, 0, 3, 5 };
@@ -115,8 +106,8 @@ struct Date {
 		return (mday + offset + 5 * ((year - 1) % 4) + 4 * ((year - 1) % 100) + 6 * ((year - 1) % 400)) % 7;
 	}
 };
-static Date today;
-static Date currDate;
+static Date today = 0;
+static Date currDate = 0;
 
 const char listMonthName[12][12] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
 const char mday[31][3] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31" };
@@ -138,7 +129,7 @@ inline static unsigned long RGB2BGR(unsigned long color)
 {
 	return RGB((BYTE)(color >> 16), (BYTE)(color >> 8), (BYTE)(color >> 0));
 }
-int DaysInMonth(int year, int month)
+inline int DaysInMonth(int year, int month)
 {
 	if ((month <= 7 && month & 1) || (month >= 8 && month % 2 == 0)) return 31;
 	else if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
@@ -173,7 +164,6 @@ static int UintToCstr(int num, char res[])
 	res[len + 1] = '\0';
 	return len;
 }
-
 void UpdateCurrentDate(int month)
 {
 	int newMonth = currDate.GetMonth() + month, newYear = currDate.GetYear();
@@ -191,7 +181,6 @@ void UpdateCurrentDate(int month)
 	}
 
 	if (newYear >= 1 && newYear <= 9999) {
-		calendarRedraw = true;
 		HWND base = FindWindowA("BaseWindow", nullptr);
 		if (base != nullptr) {
 			if (newMonth != currDate.GetMonth()) {
@@ -207,14 +196,13 @@ void UpdateCurrentDate(int month)
 		}
 		int maximumDayInMonth = DaysInMonth(newYear, newMonth);
 		currDate = Date(newYear, newMonth, currDate.GetMonthDay() <= maximumDayInMonth ? currDate.GetMonthDay() : maximumDayInMonth);
+		calendarRedraw = true;
 	}
 }
+
 LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-	static HBRUSH hbrBackground = CreateSolidBrush(0x1e1e1e);
-	static int fontSize = WINDOW_HEIGHT / 32 + 10;
-	static HFONT globalFont = CreateFont(-fontSize, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-
+	static bool firstDraw = true;
 	switch (msg)
 	{
 	case WM_CREATE:
@@ -226,101 +214,85 @@ LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 		UintToCstr(currDate.GetYear(), year);
 		{
 			HDC hdc = GetDC(hwnd);
+			int fontSize = WINDOW_HEIGHT / 32 + 10;
+			HFONT globalFont = CreateFont(-fontSize, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
 			HFONT olfhfont = (HFONT)SelectObject(hdc, globalFont);
 			GetTextExtentPoint32A(hdc, "September", 9, &septemberSz);
 			GetTextExtentPoint32A(hdc, "9999", 4, &year9999Sz);
 			SelectObject(hdc, olfhfont);
+			DeleteObject(globalFont);
 			ReleaseDC(hwnd, hdc);
 		}
 
 		CreateWindowA("Button", "", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, CALENDAR_POS_X, TITLEBAR_HEIGHT + 4, buttonSize, buttonSize, hwnd, (HMENU)PREVMONTH_BUTTON_ID, hInstance, nullptr);
 		CreateWindowA("Button", "", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, CALENDAR_POS_X + buttonSize + 4, TITLEBAR_HEIGHT + 4, buttonSize, buttonSize, hwnd, (HMENU)NEXTMONTH_BUTTON_ID, hInstance, nullptr);
 		CreateWindowA("Button", "", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, WINDOW_WIDTH - TITLEBAR_HEIGHT * 3 / 2, 0, TITLEBAR_HEIGHT * 3 / 2, TITLEBAR_HEIGHT, hwnd, (HMENU)CLOSE_BUTTON_ID, hInstance, nullptr);
-		HWND monthLabel = CreateWindowA("Static", listMonthName[today.GetMonth() - 1], WS_CHILD | WS_VISIBLE | SS_RIGHT, CALENDAR_POS_X + CALENDAR_WIDTH / 2 - (septemberSz.cx + 10) * 5 / 6, TITLEBAR_HEIGHT, septemberSz.cx + 10, septemberSz.cy, hwnd, (HMENU)MONTH_LABEL_ID, hInstance, nullptr);
-		SendMessageA(monthLabel, WM_SETFONT, (WPARAM)globalFont, 0);
-		HWND yearLabel = CreateWindowA("Static", year, WS_CHILD | WS_VISIBLE, CALENDAR_POS_X + CALENDAR_WIDTH / 2 - (septemberSz.cx + 10) * 5 / 6 + septemberSz.cx + 20, TITLEBAR_HEIGHT, year9999Sz.cx, septemberSz.cy, hwnd, (HMENU)YEAR_LABEL_ID, hInstance, nullptr);
-		SendMessageA(yearLabel, WM_SETFONT, (WPARAM)globalFont, 0);
+		CreateWindowA("Static", listMonthName[today.GetMonth() - 1], WS_CHILD | WS_VISIBLE | SS_OWNERDRAW, CALENDAR_POS_X + CALENDAR_WIDTH / 2 - septemberSz.cx, TITLEBAR_HEIGHT, septemberSz.cx, septemberSz.cy, hwnd, (HMENU)MONTH_LABEL_ID, hInstance, nullptr);
+		CreateWindowA("Static", year, WS_CHILD | WS_VISIBLE | SS_OWNERDRAW, CALENDAR_POS_X + CALENDAR_WIDTH / 2 + 10, TITLEBAR_HEIGHT, septemberSz.cx, septemberSz.cy, hwnd, (HMENU)YEAR_LABEL_ID, hInstance, nullptr);
 	} break;
 	case WM_PAINT:
 	{
+		PAINTSTRUCT ps{};
+		HDC hdc = BeginPaint(hwnd, &ps);
+		
+		if (firstDraw) {
+			firstDraw = false;
 #ifdef _DEBUG
 			std::cout << "Redraw Window!!!\n";
 #endif // _DEBUG
 
-		PAINTSTRUCT ps{};
-		HDC hdc = BeginPaint(hwnd, &ps);
+			RECT rc;
+			GetWindowRect(hwnd, &rc);
+			OffsetRect(&rc, -rc.left, -rc.top);
 
-		RECT rc;
-		GetWindowRect(hwnd, &rc);
-		OffsetRect(&rc, -rc.left, -rc.top);
+			RECT wndRect{ 0, TITLEBAR_HEIGHT, rc.right, rc.bottom };
+			SetBkColor(hdc, 0x1e1e1e);
+			ExtTextOutA(hdc, 0, TITLEBAR_HEIGHT, ETO_OPAQUE, &wndRect, nullptr, 0, nullptr);
 
-		RECT wndRect{ 0, TITLEBAR_HEIGHT, rc.right, rc.bottom };
-		SetBkColor(hdc, 0x1e1e1e);
-		ExtTextOutA(hdc, wndRect.left, wndRect.top, ETO_OPAQUE, &wndRect, nullptr, 0, nullptr);
-
-		RECT titleBarRect{ 0, 0, rc.right, TITLEBAR_HEIGHT };
-		SetTextColor(hdc, 0xffffff);
-		SetBkMode(hdc, TRANSPARENT);
-		SetBkColor(hdc, 0x2f2f2f);
-		HFONT hfont = CreateFont(-20, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
-		SelectObject(hdc, hfont);
-		SIZE textSz{};
-		GetTextExtentPoint32A(hdc, "Calendar", 8, &textSz);
-		ExtTextOutA(hdc, rc.right / 2 - textSz.cx / 2, TITLEBAR_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &titleBarRect, "Calendar", 8, nullptr);
-		DeleteObject(hfont);
-
+			RECT titleBarRect{ 0, 0, rc.right, TITLEBAR_HEIGHT };
+			SetBkColor(hdc, 0x2f2f2f);
+			ExtTextOutA(hdc, 0, 0, ETO_OPAQUE, &titleBarRect, nullptr, 0, nullptr);
+		}
 		EndPaint(hwnd, &ps);
-	} break;
-	case WM_CTLCOLORSTATIC:
-	{
-		HDC hdc = (HDC)wparam;
-		SetTextColor(hdc, RGB(255, 255, 255));
-		SetBkColor(hdc, 0x1e1e1e);
-
-		return (INT_PTR)hbrBackground;
 	} break;
 	case WM_DRAWITEM:
 	{
-		DRAWITEMSTRUCT* item = (DRAWITEMSTRUCT*)lparam;
-		RECT rc;
-		GetWindowRect(item->hwndItem, &rc);
+		const DRAWITEMSTRUCT* item = (const DRAWITEMSTRUCT*)lparam;
+		RECT rc = item->rcItem;
 		OffsetRect(&rc, -rc.left, -rc.top);
 
 		switch (wparam)
 		{
 		case PREVMONTH_BUTTON_ID:
-		{
-			SetBkColor(item->hDC, 0x2f2f2f);
-			ExtTextOutA(item->hDC, 0, 0, ETO_OPAQUE, &rc, nullptr, 0, nullptr);
-
-			HPEN hpen = CreatePen(PS_SOLID, 2, 0xffffff);
-			HPEN oldhpen = (HPEN)SelectObject(item->hDC, hpen);
-			int offsetX = -4, offsetY = 0;
-			MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
-			LineTo(item->hDC, rc.right / 2 + rc.right / 5 + offsetX, rc.bottom / 2 - rc.right / 5 + offsetY);						// 4 sqrt(2) ~ 5.6 ~ 6
-			MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
-			LineTo(item->hDC, rc.right / 2 + rc.right / 5 + offsetX, rc.bottom / 2 + rc.right / 5 + offsetY);
-			SelectObject(item->hDC, oldhpen);
-			DeleteObject(oldhpen);
-		} break;
 		case NEXTMONTH_BUTTON_ID:
 		{
-			SetBkColor(item->hDC, 0x2f2f2f);
-			ExtTextOutA(item->hDC, 0, 0, ETO_OPAQUE, &rc, nullptr, 0, nullptr);
+			if ((item->itemAction == ODA_DRAWENTIRE	&& item->itemState == 0) ||
+				(item->itemAction == ODA_SELECT		&& item->itemState & ODS_FOCUS)) {
+#ifdef _DEBUG
+				std::cout << (PREVMONTH_BUTTON_ID == wparam ? "Prev redraw" : "Next redraw") << item->itemAction << " " << item->itemState << "\n";
+#endif // _DEBUG
 
-			HPEN hpen = CreatePen(PS_SOLID, 2, 0xffffff);
-			HPEN oldhpen = (HPEN)SelectObject(item->hDC, hpen);
+				SetBkColor(item->hDC, item->itemState & ODS_SELECTED ? 0x606060 : 0x2f2f2f);
+				ExtTextOutA(item->hDC, 0, 0, ETO_OPAQUE, &rc, nullptr, 0, nullptr);
 
-			int offsetX = 4, offsetY = 0;
-			MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
-			LineTo(item->hDC, rc.right / 2 - rc.right / 5 + offsetX, rc.bottom / 2 - rc.right / 5 + offsetY);						// 4 sqrt(2) ~ 5.6 ~ 6
-			MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
-			LineTo(item->hDC, rc.right / 2 - rc.right / 5 + offsetX, rc.bottom / 2 + rc.right / 5 + offsetY);
-			SelectObject(item->hDC, oldhpen);
-			DeleteObject(oldhpen);
+				HPEN hpen = CreatePen(PS_SOLID, 2, 0xffffff);
+				HPEN oldhpen = (HPEN)SelectObject(item->hDC, hpen);
+
+				int offsetX = (wparam == PREVMONTH_BUTTON_ID ? -4 : 4), offsetY = 0, direction = (wparam == PREVMONTH_BUTTON_ID ? rc.right / 5 : -rc.right / 5);
+				MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
+				LineTo(item->hDC, rc.right / 2 + direction + offsetX, rc.bottom / 2 - rc.right / 5 + offsetY);						// 4 sqrt(2) ~ 5.6 ~ 6
+				MoveToEx(item->hDC, rc.right / 2 + offsetX, rc.bottom / 2 + offsetY, nullptr);
+				LineTo(item->hDC, rc.right / 2 + direction + offsetX, rc.bottom / 2 + rc.right / 5 + offsetY);
+				SelectObject(item->hDC, oldhpen);
+				DeleteObject(oldhpen);
+			}
 		} break;
 		case CLOSE_BUTTON_ID:
 		{
+#ifdef _DEBUG
+			std::cout << item->itemAction << " " << item->itemState << "\n";
+#endif // _DEBUG
+
 			SetBkColor(item->hDC, isMouseLeave ? 0x2f2f2f : 0x0000ff);
 			ExtTextOutA(item->hDC, 0, 0, ETO_OPAQUE, &rc, nullptr, 0, nullptr);
 
@@ -334,6 +306,28 @@ LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 			LineTo(item->hDC, rc.right / 2 + 6, rc.bottom / 2 - 6);
 			SelectObject(item->hDC, oldhpen);
 			DeleteObject(oldhpen);
+		} break;
+		case MONTH_LABEL_ID:
+		case YEAR_LABEL_ID:
+		{
+			SetTextColor(item->hDC, 0xffffff);
+			SetBkColor(item->hDC, 0x1e1e1e);
+			
+			char text[MAX_PATH] = { 0 };
+			GetWindowTextA(item->hwndItem, text, MAX_PATH);
+			size_t len = GetWindowTextLengthA(item->hwndItem);
+
+			int fontSize = WINDOW_HEIGHT / 32 + 10;
+			HFONT globalFont = CreateFont(-fontSize, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
+			HGDIOBJ oldHfont = SelectObject(item->hDC, globalFont);
+
+			SIZE textSz = { 0 };
+			GetTextExtentPointA(item->hDC, text, (int) len, &textSz);
+
+			ExtTextOutA(item->hDC, wparam == MONTH_LABEL_ID ? rc.right - textSz.cx : 0, rc.bottom / 2 - textSz.cy / 2, ETO_OPAQUE, &rc, text, (int) len, nullptr);
+
+			SelectObject(item->hDC, oldHfont);
+			DeleteObject(globalFont);
 		} break;
 		}
 	} break;
@@ -364,15 +358,8 @@ LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 		}
 	} break;
 	case WM_DESTROY:
-	{
-		if (hbrBackground) {
-			DeleteObject(hbrBackground);
-		}
-		if (globalFont) {
-			DeleteObject(globalFont);
-		}
 		PostQuitMessage(0);
-	} break;
+		break;
 	default:
 		return DefWindowProc(hwnd, msg, wparam, lparam);
 	}
@@ -385,9 +372,8 @@ LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	switch (msg)
 	{
 	case WM_CREATE:
-	{
 		SetTimer(hwnd, 1000, 1, nullptr);
-	} break;
+		break;
 	case WM_PAINT:
 	{
 		PAINTSTRUCT ps;
@@ -441,16 +427,18 @@ LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 				}
 			}
 
-			if (currDate.date == today.date) {
-				int todayRow = currDate.GetWeekDay();
-				int todayCol = (currDate.GetMonthDay() + firstDayOfMonth - 1) / 7 + 1;
+			if (currDate.GetYear() == today.GetYear() && currDate.GetMonth() == today.GetMonth()) {
+				int todayRow = today.GetWeekDay();
+				int todayCol = (today.GetMonthDay() + firstDayOfMonth - 1) / 7 + 1;
 				SetTextColor(hdc, 0);
 				SetBkColor(hdc, 0xffffff);
 
 				cellRect = { 0, 0, CELL_WIDTH, CELL_HEIGHT };
 				OffsetRect(&cellRect, todayRow * (CELL_WIDTH + CELL_PADDING_X) + CALENDAR_PADDING_X, todayCol * (CELL_HEIGHT + CELL_PADDING_Y) + CALENDAR_PADDING_Y);
-				GetTextExtentPoint32A(hdc, mday[today.GetMonthDay() - 1], (int)strlen(mday[today.GetMonthDay() - 1]), &textSz);
-				ExtTextOutA(hdc,cellRect.left + CELL_WIDTH / 2 - textSz.cx / 2, cellRect.top + CELL_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, mday[today.GetMonthDay() - 1], (int)strlen(mday[today.GetMonthDay() - 1]), nullptr);
+				const char* text = mday[today.GetMonthDay() - 1];
+				size_t len = strlen(text);
+				GetTextExtentPoint32A(hdc, text, (int) len, &textSz);
+				ExtTextOutA(hdc,cellRect.left + CELL_WIDTH / 2 - textSz.cx / 2, cellRect.top + CELL_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int) len, nullptr);
 			}
 
 			if (clickedCell.x != -1) {
@@ -475,6 +463,29 @@ LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	case WM_TIMER:
 		RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
 		break;
+	case WM_LBUTTONDOWN:
+	{
+		int x = ((int)(short)LOWORD(lparam)), y = ((int)(short)HIWORD(lparam));
+		if ((x % (CELL_WIDTH + CELL_PADDING_X)) > CELL_PADDING_X && (y % (CELL_HEIGHT + CELL_PADDING_Y)) > CELL_PADDING_Y) {
+			POINT newCell = { x / (CELL_WIDTH + CELL_PADDING_X), y / (CELL_HEIGHT + CELL_PADDING_Y) };
+			if ((newCell.x != clickedCell.x && newCell.y != clickedCell.y) &&
+				((newCell.x >= Date{ currDate.GetYear(), currDate.GetMonth(), 1 }.GetWeekDay() && newCell.y == 1) ||
+					(newCell.x + (newCell.y - 1) * 7 < Date{ currDate.GetYear(), currDate.GetMonth(), 1 }.GetWeekDay() + DaysInMonth(currDate.GetYear(), currDate.GetMonth()) && newCell.y >= 5) ||
+					(newCell.y >= 2 && newCell.y <= 4))) {
+				clickedCell.x = newCell.x;
+				clickedCell.y = newCell.y;
+				calendarRedraw = true;
+			}
+#ifdef _DEBUG
+			std::cout << x << "    " << y << '\t' << clickedCell.x << "     " << clickedCell.y << "\n";
+#endif // _DEBUG
+		}
+	} break;
+	case WM_MOUSEWHEEL:
+	{
+		short zDelta = GET_WHEEL_DELTA_WPARAM(wparam);
+		UpdateCurrentDate(zDelta > 0 ? -12 : 12);
+	} break;
 	case WM_DESTROY:
 	{
 		KillTimer(hwnd, 1000);
@@ -491,15 +502,14 @@ LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 void Init()
 {
 	std::time_t t = std::time(0);
-	struct tm now;
-	localtime_s(&now, &t);
-	today = currDate = { now.tm_year + 1900, now.tm_mon + 1, now.tm_mday };
+	struct tm *now = localtime(&t);
+	today = currDate = { now->tm_year + 1900, now->tm_mon + 1, now->tm_mday };
 }
 
 #ifdef _DEBUG
 int main()
 #else
-int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int)
+int WINAPI WinMain (HINSTANCE, HINSTANCE, LPSTR, int)
 #endif // _DEBUG
 {
 	Init();
@@ -519,78 +529,45 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int)
 		CALENDAR_POS_X, CALENDAR_POS_Y, CALENDAR_WIDTH, CALENDAR_HEIGHT,
 		base, (HMENU)CALENDAR_ID, hInstance, nullptr);
 
-	HWND closeButton = GetDlgItem(base, CLOSE_BUTTON_ID);
-
 	MSG msg{};
 	while (GetMessageA(&msg, nullptr, 0, 0)) {
 #ifdef _DEBUG
 		loopCount++;
 		if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start) >= std::chrono::microseconds{ 1000 }) {
 			start = std::chrono::high_resolution_clock::now();
-			std::cout << "Loop count: " << loopCount << '\r';
+			//std::cout << "Loop count: " << loopCount << '\r';
 			loopCount = 0;
 		}
 #endif // _DEBUG
 
-		switch (msg.message)
-		{
-		case WM_KEYDOWN:
-		{
+		if (msg.message == WM_KEYDOWN) {
 			if (msg.wParam == VK_LEFT || msg.wParam == VK_RIGHT) {
 				UpdateCurrentDate(msg.wParam == VK_LEFT ? -1 : 1);
-				calendarRedraw = true;
+			}
+			else if (msg.wParam == VK_UP || msg.wParam == VK_DOWN) {
+				UpdateCurrentDate(msg.wParam == VK_UP ? -12 : 12);
 			}
 #ifdef _DEBUG
 			std::cout << msg.wParam << "(WPARAM)\n";
 #endif // _DEBUG
-		} break;
-		case WM_MOUSEWHEEL:
-		{
-			short zDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
-			UpdateCurrentDate(zDelta > 0 ? -12 : 12);
-		} break;
-		case WM_LBUTTONDOWN:
-		{
-			if (msg.hwnd == calendar) {
-				int x = ((int)(short)LOWORD(msg.lParam)), y = ((int)(short)HIWORD(msg.lParam));
-				if ((x % (CELL_WIDTH + CELL_PADDING_X)) > CELL_PADDING_X && (y % (CELL_HEIGHT + CELL_PADDING_Y)) > CELL_PADDING_Y) {
-					POINT newCell = { x / (CELL_WIDTH + CELL_PADDING_X), y / (CELL_HEIGHT + CELL_PADDING_Y) };
-					if ((newCell.x != clickedCell.x && newCell.y != clickedCell.y) &&
-						((newCell.x >= Date{ currDate.GetYear(), currDate.GetMonth(), 1 }.GetWeekDay() && newCell.y == 1) ||
-							(newCell.x + (newCell.y - 1) * 7 < Date{ currDate.GetYear(), currDate.GetMonth(), 1 }.GetWeekDay() + DaysInMonth(currDate.GetYear(), currDate.GetMonth()) && newCell.y >= 5) ||
-							(newCell.y >= 2 && newCell.y <= 4))) {
-						clickedCell.x = newCell.x;
-						clickedCell.y = newCell.y;
-						calendarRedraw = true;
-					}
-#ifdef _DEBUG
-					std::cout << x << "    " << y << '\t' << clickedCell.x << "     " << clickedCell.y << "\n";
-#endif // _DEBUG
-				}
+		}
+		else if (msg.message == WM_MOUSEMOVE) {
+			if (GetDlgCtrlID(msg.hwnd) == CLOSE_BUTTON_ID && isMouseLeave) {
+				TRACKMOUSEEVENT tme{};
+				tme.cbSize = sizeof(TRACKMOUSEEVENT);
+				tme.dwFlags = TME_LEAVE | TME_HOVER;
+				tme.dwHoverTime = 1;
+				tme.hwndTrack = msg.hwnd;
+				TrackMouseEvent(&tme);
+				isMouseLeave = false;
+				RedrawWindow(msg.hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
 			}
-		} break;
-		case WM_MOUSEMOVE:
-		{
-			if (msg.hwnd == closeButton) {
-				if (isMouseLeave) {
-					TRACKMOUSEEVENT tme{};
-					tme.cbSize = sizeof(TRACKMOUSEEVENT);
-					tme.dwFlags = TME_LEAVE;
-					tme.dwHoverTime = 1;
-					tme.hwndTrack = closeButton;
-					TrackMouseEvent(&tme);
-					isMouseLeave = false;
-					RedrawWindow(closeButton, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
-				}
-			}
-		} break;
-		case WM_MOUSELEAVE:
-		{
+		}
+		else if (msg.message == WM_MOUSELEAVE) {
 			if (!isMouseLeave) {
 				isMouseLeave = true;
-				RedrawWindow(closeButton, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
+				RedrawWindow(msg.hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
 			}
-		} break;
 		}
 
 		TranslateMessage(&msg);
