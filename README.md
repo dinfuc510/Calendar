@@ -1,6 +1,6 @@
 # Build
 ### Windows MSVC
-    cl .\calendar.c /Wall /O2 /link user32.lib gdi32.lib
+    cl .\calendar.c /W4 /O2 /link user32.lib gdi32.lib
 ### Windows MinGW
     gcc calendar.c -o calendar.exe -Wall -Wextra -O2 -luser32 -lgdi32
 ### Cross compilation from Linux to Windows
