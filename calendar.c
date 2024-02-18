@@ -50,13 +50,6 @@
 #define YEAR_LABEL_ID		2004
 #define CALENDAR_ID			2005
 
-// from Raylib source code
-#if defined(__cplusplus)
-#define CLITERAL(type)      type
-#else
-#define CLITERAL(type)      (type)
-#endif
-
 // redefinition
 #ifndef SRCCOPY
 #define SRCCOPY 0x00CC0020
@@ -149,6 +142,7 @@ static void UpdateCurrentDate(int month)
 				SetWindowText(GetDlgItem(base, YEAR_LABEL_ID), year);
 			}
 		}
+		clickedCell.x = clickedCell.y = -1;
 		uint8_t maximumDayInMonth = DaysInMonth((uint16_t) newYear, (uint8_t) newMonth);
 		currDate.year = (uint16_t) newYear;
 		currDate.month = (uint8_t) newMonth;
@@ -160,12 +154,12 @@ static void UpdateCurrentDate(int month)
 SIZE _GetWindowSize(HWND hwnd, const char* filename, int line) {
 	if (hwnd == NULL) {
 		fprintf(stderr, "%s:%d %s\n", filename, line, "ERROR: hwnd can not NULL");
-		return CLITERAL(SIZE){0, 0};
+		return (SIZE){0, 0};
 	}
 	RECT rc;
 	GetWindowRect(hwnd, &rc);
 	OffsetRect(&rc, -rc.left, -rc.top);
-	return CLITERAL(SIZE){rc.right, rc.bottom};
+	return (SIZE){rc.right, rc.bottom};
 }
 
 static LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -241,14 +235,15 @@ static LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 			SetBkColor(item->hDC, isMouseLeave ? 0x2f2f2f : 0x3030ff);
 			ExtTextOut(item->hDC, 0, 0, ETO_OPAQUE, &rc, NULL, 0, NULL);
 
+			int offset = 6;
 			HPEN hpen = CreatePen(PS_SOLID, 2, isMouseLeave ? 0x7f7f7f : 0xffffff);
 			HPEN oldhpen = (HPEN)SelectObject(item->hDC, hpen);
 			MoveToEx(item->hDC, rc.right / 2, rc.bottom / 2, NULL);
-			LineTo(item->hDC, rc.right / 2 - 6, rc.bottom / 2 - 6);						// 4 sqrt(2) ~ 5.6 ~ 6
-			LineTo(item->hDC, rc.right / 2 + 6, rc.bottom / 2 + 6);
+			LineTo(item->hDC, rc.right / 2 - offset, rc.bottom / 2 - offset);						// 4 sqrt(2) ~ 5.6 ~ 6
+			LineTo(item->hDC, rc.right / 2 + offset, rc.bottom / 2 + offset);
 			MoveToEx(item->hDC, rc.right / 2, rc.bottom / 2, NULL);
-			LineTo(item->hDC, rc.right / 2 - 6, rc.bottom / 2 + 6);
-			LineTo(item->hDC, rc.right / 2 + 6, rc.bottom / 2 - 6);
+			LineTo(item->hDC, rc.right / 2 - offset, rc.bottom / 2 + offset);
+			LineTo(item->hDC, rc.right / 2 + offset, rc.bottom / 2 - offset);
 			SelectObject(item->hDC, oldhpen);
 			DeleteObject(oldhpen);
 		} break;
@@ -312,9 +307,9 @@ static LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	case WM_GETMINMAXINFO:
 	{
 		LPMINMAXINFO info = (LPMINMAXINFO) lparam;
-		info->ptMinTrackSize = CLITERAL(POINT){600, 300};
-		info->ptMaxTrackSize = CLITERAL(POINT){GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) - 1};
-		info->ptMaxPosition = CLITERAL(POINT){1, 1};
+		info->ptMinTrackSize = (POINT){600, 300};
+		info->ptMaxTrackSize = (POINT){GetSystemMetrics(SM_CXSCREEN) - 1, GetSystemMetrics(SM_CYSCREEN) - 1};
+		info->ptMaxPosition = (POINT){0, 1};
 	} break;
 	case WM_SIZE:
 	{
@@ -355,6 +350,7 @@ static LRESULT BaseWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 		int border = 2;
 		LPNCCALCSIZE_PARAMS params = (LPNCCALCSIZE_PARAMS)lparam;
 		params->rgrc[0].left += border;
+		// params->rgrc[0].top += border;
 		params->rgrc[0].right -= border;
 		params->rgrc[0].bottom -= border;
 
@@ -381,19 +377,17 @@ static LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hwnd, &ps);
-		SetMapMode(hdc, MM_TEXT);
-		SetGraphicsMode(hdc, GM_ADVANCED);
 		RECT rc;
 		GetWindowRect(hwnd, &rc);
 		OffsetRect(&rc, -rc.left, -rc.top);
 
 		if (calendarRedraw) {
 			calendarRedraw = false;
-			uint32_t CELL_WIDTH = ((rc.right - (CALENDAR_ROWS + 1) * CELL_PADDING_X) / CALENDAR_ROWS);
-			uint32_t CELL_HEIGHT = ((rc.bottom - (CALENDAR_COLS + 1) * CELL_PADDING_Y) / CALENDAR_COLS);
+			uint32_t cell_width = (rc.right - (CALENDAR_ROWS + 1) * CELL_PADDING_X) / CALENDAR_ROWS;
+			uint32_t cell_height = (rc.bottom - (CALENDAR_COLS + 1) * CELL_PADDING_Y) / CALENDAR_COLS;
 
-			uint32_t CALENDAR_PADDING_X = ((rc.right - (CALENDAR_ROWS - 1) * (CELL_WIDTH + CELL_PADDING_X) - CELL_WIDTH) / 2);
-			uint32_t CALENDAR_PADDING_Y = ((rc.bottom - (CALENDAR_COLS - 1) * (CELL_HEIGHT + CELL_PADDING_Y) - CELL_HEIGHT) / 2);
+			uint32_t calendar_padding_x = (rc.right - (CALENDAR_ROWS - 1) * (cell_width + CELL_PADDING_X) - cell_width) / 2;
+			uint32_t calendar_padding_y = (rc.bottom - (CALENDAR_COLS - 1) * (cell_height + CELL_PADDING_Y) - cell_height) / 2;
 
 			HDC memDc = CreateCompatibleDC(hdc);
 			if (memDc != NULL) {
@@ -405,24 +399,38 @@ static LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 					SetBkColor(memDc, 0x1e1e1e);
 					ExtTextOut(memDc, 0, 0, ETO_OPAQUE, &fillRect, NULL, 0, NULL);
 
-					SetTextColor(memDc, 0xffffff);
+					SetTextColor(memDc, 0xa1a1a1);
 					HFONT hfont = CreateFont(-fillRect.bottom / 24, 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
 					SIZE textSz = { 0 };
-					RECT cellRect = { CALENDAR_PADDING_X, CALENDAR_PADDING_Y, CELL_WIDTH, CELL_HEIGHT };
+					RECT cellRect = { calendar_padding_x, calendar_padding_y, cell_width, cell_height };
 					oldFont = (HFONT)SelectObject(memDc, hfont);
 					for (int i = 0; i < CALENDAR_ROWS; i++) {
 						GetTextExtentPoint32(memDc, dayOfWeek[i], 3, &textSz);
-						ExtTextOut(memDc, cellRect.left + CELL_WIDTH / 2 - textSz.cx / 2, cellRect.top + CELL_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, dayOfWeek[i], 3, NULL);
-						OffsetRect(&cellRect, CELL_WIDTH + CELL_PADDING_X, 0);
+						ExtTextOut(memDc, cellRect.left + cell_width / 2 - textSz.cx / 2, cellRect.top + cell_height / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, dayOfWeek[i], 3, NULL);
+						OffsetRect(&cellRect, cell_width + CELL_PADDING_X, 0);
 					}
 					SelectObject(memDc, oldFont);
 					DeleteObject(hfont);
 
-					int firstDayOfMonth = GetWeekDay(&CLITERAL(Date) { currDate.year, currDate.month, 1 });
-					int numberOfDays = DaysInMonth(currDate.year, currDate.month);
+					uint8_t firstDayOfMonth = GetWeekDay(&(Date) { currDate.year, currDate.month, 1 });
+					uint8_t numberOfDays = DaysInMonth(currDate.year, currDate.month);
+					uint8_t numberOfDaysInPrevMonth = 31;
+					if (currDate.month > 1) {
+						numberOfDaysInPrevMonth = DaysInMonth(currDate.year, currDate.month - 1);
+					}
 
 					hfont = CreateFont(-fillRect.bottom / 28, 0, 0, 0, FW_NORMAL, 0, 0, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, TEXT("Segoe UI"));
 					oldFont = (HFONT)SelectObject(memDc, hfont);
+					SetTextColor(memDc, 0x4f4f4f);
+					for (int i = 0; i < firstDayOfMonth; ++i) {
+						cellRect = (RECT) { 0, 0, cell_width, cell_height };
+						OffsetRect(&cellRect, i * (cell_width + CELL_PADDING_X) + calendar_padding_x, (cell_height + CELL_PADDING_Y) + calendar_padding_y);
+						const char* text = mday[numberOfDaysInPrevMonth - firstDayOfMonth + i];
+						size_t len = strlen(text);
+						GetTextExtentPoint32(memDc, text, (int)len, &textSz);
+						ExtTextOut(memDc, cellRect.left + cell_width / 2 - textSz.cx / 2, cellRect.top + cell_height / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
+					}
+					SetTextColor(memDc, 0xffffff);
 					for (int i = 0; i < CALENDAR_ROWS; i++) {
 						for (int j = 0; j < 6; j++) {
 							int row = i + firstDayOfMonth, col = j + 1;
@@ -430,45 +438,61 @@ static LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 								col++;
 								row %= 7;
 							}
-
-							if (i + 7 * j >= numberOfDays)
+							if (i + 7 * j >= numberOfDays) {
 								break;
+							}
 
-							cellRect = CLITERAL(RECT) { 0, 0, CELL_WIDTH, CELL_HEIGHT };
-							OffsetRect(&cellRect, row * (CELL_WIDTH + CELL_PADDING_X) + CALENDAR_PADDING_X, col * (CELL_HEIGHT + CELL_PADDING_Y) + CALENDAR_PADDING_Y);
+							cellRect = (RECT) { 0, 0, cell_width, cell_height };
+							OffsetRect(&cellRect, row * (cell_width + CELL_PADDING_X) + calendar_padding_x, col * (cell_height + CELL_PADDING_Y) + calendar_padding_y);
 							const char* text = mday[i + 7 * j];
 							size_t len = strlen(text);
 							GetTextExtentPoint32(memDc, text, (int)len, &textSz);
-							ExtTextOut(memDc, cellRect.left + CELL_WIDTH / 2 - textSz.cx / 2, cellRect.top + CELL_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
+							ExtTextOut(memDc, cellRect.left + cell_width / 2 - textSz.cx / 2, cellRect.top + cell_height / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
 						}
 					}
-
+					SetTextColor(memDc, 0x4f4f4f);
+					for (int i = 0; i < CALENDAR_ROWS; i++) {
+						for (int j = 4; j < 6; j++) {
+							int row = i + firstDayOfMonth, col = j + 1;
+							if (row >= 7) {
+								col++;
+								row %= 7;
+							}
+							if (i + 7 * j >= numberOfDays) {
+								cellRect = (RECT) { 0, 0, cell_width, cell_height };
+								OffsetRect(&cellRect, row * (cell_width + CELL_PADDING_X) + calendar_padding_x, col * (cell_height + CELL_PADDING_Y) + calendar_padding_y);
+								const char* text = mday[i - numberOfDays % 7 + 7 * (j - 4)];
+								size_t len = strlen(text);
+								GetTextExtentPoint32(memDc, text, (int) len, &textSz);
+								ExtTextOut(memDc, cellRect.left + cell_width / 2 - textSz.cx / 2, cellRect.top + cell_height / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
+							}
+						}
+					}
 					if (currDate.year == today.year && currDate.month == today.month) {
 						int todayRow = GetWeekDay(&today);
 						int todayCol = (today.mday + firstDayOfMonth - 1) / 7 + 1;
 						SetTextColor(memDc, 0);
 						SetBkColor(memDc, 0xffffff);
 
-						cellRect = CLITERAL(RECT) { 0, 0, CELL_WIDTH, CELL_HEIGHT };
-						OffsetRect(&cellRect, todayRow * (CELL_WIDTH + CELL_PADDING_X) + CALENDAR_PADDING_X, todayCol * (CELL_HEIGHT + CELL_PADDING_Y) + CALENDAR_PADDING_Y);
+						cellRect = (RECT) { 1, 1, cell_width - 1, cell_height - 1 };
+						OffsetRect(&cellRect, todayRow * (cell_width + CELL_PADDING_X) + calendar_padding_x, todayCol * (cell_height + CELL_PADDING_Y) + calendar_padding_y);
 						const char* text = mday[today.mday - 1];
 						size_t len = strlen(text);
 						GetTextExtentPoint32(memDc, text, (int)len, &textSz);
-						ExtTextOut(memDc, cellRect.left + CELL_WIDTH / 2 - textSz.cx / 2, cellRect.top + CELL_HEIGHT / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
+						ExtTextOut(memDc, cellRect.left + cell_width / 2 - textSz.cx / 2, cellRect.top + cell_height / 2 - textSz.cy / 2, ETO_OPAQUE, &cellRect, text, (int)len, NULL);
 					}
 
 					if (clickedCell.x != -1) {
 						int cellBorderWidth = 1;
 
-						cellRect = CLITERAL(RECT) { 0, 0, CELL_WIDTH, CELL_HEIGHT };
-						OffsetRect(&cellRect, clickedCell.x * (CELL_WIDTH + CELL_PADDING_X) + CALENDAR_PADDING_X, clickedCell.y * (CELL_HEIGHT + CELL_PADDING_Y) + CALENDAR_PADDING_Y);
+						cellRect = (RECT) { 0, 0, cell_width, cell_height };
+						OffsetRect(&cellRect, clickedCell.x * (cell_width + CELL_PADDING_X) + calendar_padding_x, clickedCell.y * (cell_height + CELL_PADDING_Y) + calendar_padding_y);
 						HPEN p = CreatePen(PS_SOLID, cellBorderWidth, 0xffffff);
 						HPEN oldPen = (HPEN)SelectObject(memDc, GetStockObject(NULL_BRUSH));
 						SelectObject(memDc, p);
-						Rectangle(memDc, cellRect.left - cellBorderWidth, cellRect.top - cellBorderWidth, cellRect.right + cellBorderWidth, cellRect.bottom + cellBorderWidth);
+						Rectangle(memDc, cellRect.left, cellRect.top, cellRect.right, cellRect.bottom);
 						SelectObject(memDc, oldPen);
 						DeleteObject(p);
-						clickedCell.x = clickedCell.y = -1;
 					}
 
 					SelectObject(memDc, oldFont);
@@ -499,17 +523,18 @@ static LRESULT CalendarWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 		GetWindowRect(hwnd, &rc);
 		OffsetRect(&rc, -rc.left, -rc.top);
 
-		uint32_t CELL_WIDTH = ((rc.right - (CALENDAR_ROWS + 1) * CELL_PADDING_X) / CALENDAR_ROWS);
-		uint32_t CELL_HEIGHT = ((rc.bottom - (CALENDAR_COLS + 1) * CELL_PADDING_Y) / CALENDAR_COLS);
+		uint32_t cell_width = ((rc.right - (CALENDAR_ROWS + 1) * CELL_PADDING_X) / CALENDAR_ROWS);
+		uint32_t cell_height = ((rc.bottom - (CALENDAR_COLS + 1) * CELL_PADDING_Y) / CALENDAR_COLS);
 
-		int firstDayOfMonth = GetWeekDay(&CLITERAL(Date) { currDate.year, currDate.month, 1 });
+		int firstDayOfMonth = GetWeekDay(&(Date) { currDate.year, currDate.month, 1 });
 		int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam);
+		if ((x % (cell_width + CELL_PADDING_X)) > CELL_PADDING_X && (y % (cell_height + CELL_PADDING_Y)) > CELL_PADDING_Y) {
+			POINT newCell = { x / (cell_width + CELL_PADDING_X), y / (cell_height + CELL_PADDING_Y) };
 #ifdef _DEBUG
-		printf("%d %d\n", x, y);
+		printf("%ld %ld - ", clickedCell.x, clickedCell.y);
+		printf("%ld %ld\n", newCell.x, newCell.y);
 #endif
-		if ((x % (CELL_WIDTH + CELL_PADDING_X)) > CELL_PADDING_X && (y % (CELL_HEIGHT + CELL_PADDING_Y)) > CELL_PADDING_Y) {
-			POINT newCell = { x / (CELL_WIDTH + CELL_PADDING_X), y / (CELL_HEIGHT + CELL_PADDING_Y) };
-			if ((newCell.x != clickedCell.x && newCell.y != clickedCell.y) &&
+			if ((newCell.x != clickedCell.x || newCell.y != clickedCell.y) &&
 				((newCell.x >= firstDayOfMonth && newCell.y == 1) ||
 					(newCell.x + (newCell.y - 1) * 7 < firstDayOfMonth + DaysInMonth(currDate.year, currDate.month) && newCell.y >= 5) ||
 					(newCell.y >= 2 && newCell.y <= 4))) {
@@ -542,7 +567,7 @@ static inline void Init(void)
 {
 	time_t t = time(0);
 	struct tm* now = localtime(&t);
-	today = currDate = CLITERAL(Date) { (uint16_t)(now->tm_year + 1900), (uint8_t)(now->tm_mon + 1), (uint8_t)now->tm_mday };
+	today = currDate = (Date) { (uint16_t)(now->tm_year + 1900), (uint8_t)(now->tm_mon + 1), (uint8_t)now->tm_mday };
 }
 
 #if !defined(_DEBUG) && defined(_WIN32)
@@ -558,7 +583,7 @@ int main(void)
 	HINSTANCE hInstance = GetModuleHandle(NULL);
 
 	RegisterWindowClass("BaseWindow", BaseWindowProc);
-	HWND base = CreateWindow("BaseWindow", NULL, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
+	HWND base = CreateWindow("BaseWindow", NULL, WS_THICKFRAME | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
 	if (base == NULL) {
 		UnregisterClass("BaseWindow", hInstance);
 		return -1;
@@ -585,7 +610,7 @@ int main(void)
 			if (GetDlgCtrlID(msg.hwnd) == CLOSE_BUTTON_ID && isMouseLeave) {
 				TRACKMOUSEEVENT tme = { 0 };
 				tme.cbSize = sizeof(TRACKMOUSEEVENT);
-				tme.dwFlags = TME_LEAVE | TME_HOVER;
+				tme.dwFlags = TME_LEAVE;
 				tme.dwHoverTime = 1;
 				tme.hwndTrack = msg.hwnd;
 				TrackMouseEvent(&tme);
