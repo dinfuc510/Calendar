@@ -1,4 +1,10 @@
 #define _CRT_SECURE_NO_WARNINGS
+#ifndef UNICODE
+#define UNICODE
+#endif // !UNICODE
+#ifndef _UNICODE
+#define _UNICODE
+#endif // !_UNICODE
 #include <windows.h>
 #include <gdiplus.h>
 #include <memory>
@@ -7,9 +13,6 @@
 #include <vector>
 #include <unordered_map>
 #include <fstream>
-
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 bool RegisterWndClass(const wchar_t*, WNDPROC);
@@ -141,7 +144,7 @@ int main()
 	popupHwnd = CreateWindow(L"Popup", L"Popup", WS_POPUP,
 		windowSize.Width / 2 - popup.Width / 2, windowSize.Height / 2 - popup.Height / 2, popup.Width, popup.Height,
 		HWND_DESKTOP, nullptr, hInstance, nullptr);
-	SetWindowLongPtr(popupHwnd, -8, (LONG)windowHwnd);
+	SetWindowLongPtr(popupHwnd, -8, (LONG_PTR) windowHwnd);
 
 	HWND edit = FindWindowEx(popupHwnd, nullptr, L"Edit", nullptr);
 
@@ -204,7 +207,7 @@ void DrawWindow(HWND Handle)
 	HGDIOBJ oldBitmap = nullptr;
 	myBitmap->GetHBITMAP(Gdiplus::Color(0), &hBitmap);
 	oldBitmap = SelectObject(memDc, hBitmap);
-	SIZE size = { windowSize.Width, windowSize.Height };
+	SIZE size = { (LONG) windowSize.Width, (LONG) windowSize.Height };
 	POINT pointSource = { 0, 0 };
 	POINT topPos = { window.left, window.top };
 	BLENDFUNCTION blend{};
@@ -1238,7 +1241,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 		RegisterWndClass(L"PopupButton", buttonWndProc);
 		CreateWindow(L"PopupButton", L"Add Note", WS_VISIBLE | WS_CHILD,
 			popup.Width / 2 - 100 / 2, popup.Height - 50, 100, 30,
-			hWnd, nullptr, (HINSTANCE)GetWindowLong(hWnd, GWLP_HINSTANCE), nullptr);
+			hWnd, nullptr, (HINSTANCE) GetWindowLongPtr(hWnd, GWLP_HINSTANCE), nullptr);
 
 		RegisterWndClass(L"PopupClose", closeWndProc);
 		CreateWindow(L"PopupClose", L"", WS_VISIBLE | WS_CHILD,
