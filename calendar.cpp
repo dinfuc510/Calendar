@@ -7,7 +7,6 @@
 #endif // !_UNICODE
 #include <windows.h>
 #include <gdiplus.h>
-#include <memory>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -175,7 +174,7 @@ int main()
 				SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
 				ShowWindow(GetParent(messages.hwnd), SW_HIDE);
 			}
-			delete[] text;			
+			delete[] text;
 		}
 		TranslateMessage(&messages);
 		DispatchMessage(&messages);
@@ -186,18 +185,18 @@ int main()
 
 void DrawWindow(HWND Handle)
 {
-	std::unique_ptr <Gdiplus::Bitmap> myBitmap = std::make_unique<Gdiplus::Bitmap>(windowSize.Width, windowSize.Height);
-	auto g = std::make_unique<Gdiplus::Graphics>(myBitmap.get());
+	Gdiplus::Bitmap *myBitmap = new Gdiplus::Bitmap(windowSize.Width, windowSize.Height);
+	Gdiplus::Graphics *g = new Gdiplus::Graphics(myBitmap);
 	g->SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
 	g->SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
 
-	DrawBase(g.get());
-	DrawSysMenu(g.get());
-	DrawCalendar(g.get());
-	DrawNote(g.get());
-	DrawScrollbar(g.get());
-	DrawAddNote(g.get());
-	DrawPopup(g.get());
+	DrawBase(g);
+	DrawSysMenu(g);
+	DrawCalendar(g);
+	DrawNote(g);
+	DrawScrollbar(g);
+	DrawAddNote(g);
+	DrawPopup(g);
 
 	RECT window;
 	GetWindowRect(Handle, &window);
@@ -224,18 +223,16 @@ void DrawWindow(HWND Handle)
 	DeleteObject(oldBitmap);
 
 	g->Flush();
-	g.reset();
-	myBitmap.reset();
+	delete g;
+	delete myBitmap;
 }
 
 void DrawBase(Gdiplus::Graphics* g)
 {
-	auto path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
-	auto br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-	g->FillPath(br.get(), path.get());
-	br.reset();
-	path.reset();
+	auto br = Gdiplus::SolidBrush(darkColor);
+	auto path = Gdiplus::GraphicsPath();
+	RoundedRect(&path, Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
+	g->FillPath(&br, &path);
 }
 
 void DrawSysMenu(Gdiplus::Graphics* g)
@@ -247,61 +244,49 @@ void DrawSysMenu(Gdiplus::Graphics* g)
 
 void DrawTitleBar(Gdiplus::Graphics* g)
 {
-	auto br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(0xaa2f2f2f));
-	auto path = std::make_unique<Gdiplus::GraphicsPath>();
+	auto br = Gdiplus::SolidBrush(Gdiplus::Color(0xaa2f2f2f));
+	auto path = Gdiplus::GraphicsPath();
 
-	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
+	RoundedRect(&path, Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
 	g->SetClip(titleBar);
 	g->Clear(0);
-	g->FillPath(br.get(), path.get());
+	g->FillPath(&br, &path);
 
 	g->ResetClip();
-	path.reset();
-	br.reset();
 
-	auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-	br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
-	auto fmt = std::make_unique<Gdiplus::StringFormat>();
-	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
-	fmt->SetLineAlignment(Gdiplus::StringAlignmentCenter);
+	auto fmt = Gdiplus::StringFormat();
+	auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+	br.SetColor(lightColor);
+	fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+	fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
-	g->DrawString(L"Calendar", 9, font.get(), Gdiplus::RectF(8, 0, windowSize.Width - 8, titleBar.Height), fmt.get(), br.get());
-
-	fmt.reset();
-	br.reset();
-	font.reset();
+	g->DrawString(L"Calendar", 9, &font, Gdiplus::RectF(8, 0, windowSize.Width - 8, titleBar.Height), &fmt, &br);
 }
 
 void DrawControlBox(Gdiplus::Graphics* g)
 {
 	int iconSize = 10;
-	auto p = std::make_unique<Gdiplus::Pen>(0xffffffff, 2);
-	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 });
+	auto p = Gdiplus::Pen(0xffffffff, 2);
+	g->DrawLine(&p, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 });
+	g->DrawLine(&p, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 - iconSize / 2, exitWindow.Y + exitWindow.Height / 2 + iconSize / 2 }, Gdiplus::PointF{ exitWindow.X + exitWindow.Width / 2 + iconSize / 2, exitWindow.Y + exitWindow.Height / 2 - iconSize / 2 });
 
-	g->DrawLine(p.get(), Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 - iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 }, Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 + iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 });
-
-	p.reset();
+	g->DrawLine(&p, Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 - iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 }, Gdiplus::PointF{ minimizeWindow.X + minimizeWindow.Width / 2 + iconSize / 2, minimizeWindow.Y + minimizeWindow.Height / 2 });
 }
 
 void DrawChangeMonth(Gdiplus::Graphics* g)
 {
-	auto br = std::make_unique<Gdiplus::SolidBrush>(0xff3f3f3f);
+	auto br = Gdiplus::SolidBrush(0xff3f3f3f);
 
-	g->FillEllipse(br.get(), prevMonth);
-	g->FillEllipse(br.get(), nextMonth);
+	g->FillEllipse(&br, prevMonth);
+	g->FillEllipse(&br, nextMonth);
 
-	br.reset();
+	auto p = Gdiplus::Pen(0xffffffff, 2);
 
-	auto p = std::make_unique<Gdiplus::Pen>(0xffffffff, 2);
+	g->DrawLine(&p, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
+	g->DrawLine(&p, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
 
-	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2 - prevMonth.Width / 6, prevMonth.Y + prevMonth.Height / 2 }, Gdiplus::PointF{ prevMonth.X + prevMonth.Width / 2, prevMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
-
-	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
-	g->DrawLine(p.get(), Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
-
-	p.reset();
+	g->DrawLine(&p, Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 - prevMonth.Height / 4 });
+	g->DrawLine(&p, Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
 }
 
 void DrawCalendar(Gdiplus::Graphics* g)
@@ -317,37 +302,33 @@ void DrawCalendar(Gdiplus::Graphics* g)
 
 void DrawCalendarLabel(Gdiplus::Graphics* g)
 {
-	auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 20, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-	auto br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
-	auto fmt = std::make_unique<Gdiplus::StringFormat>();
-	fmt->SetAlignment(Gdiplus::StringAlignmentFar);
-	fmt->SetLineAlignment(Gdiplus::StringAlignmentCenter);
+	auto font = Gdiplus::Font(L"Segoe UI", 20, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+	auto br = Gdiplus::SolidBrush(lightColor);
+	auto fmt = Gdiplus::StringFormat();
+	fmt.SetAlignment(Gdiplus::StringAlignmentFar);
+	fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
-	g->DrawString(ToMonthName(dateJump.GetMonth()).c_str(), -1, font.get(), Gdiplus::RectF{ 0, 0, calendar.Width / 2 + 20, 20 * 96 / 72 },
-		fmt.get(), br.get());
+	g->DrawString(ToMonthName(dateJump.GetMonth()).c_str(), -1, &font, Gdiplus::RectF{ 0, 0, calendar.Width / 2 + 20, 20 * 96 / 72 },
+		&fmt, &br);
 
-	fmt->SetAlignment(Gdiplus::StringAlignmentNear);
-	g->DrawString(std::to_wstring(dateJump.GetYear()).c_str(), -1, font.get(), Gdiplus::RectF{ calendar.Width / 2 + 20, 0, 100, 20 * 96 / 72 },
-		fmt.get(), br.get());
+	fmt.SetAlignment(Gdiplus::StringAlignmentNear);
+	g->DrawString(std::to_wstring(dateJump.GetYear()).c_str(), -1, &font, Gdiplus::RectF{ calendar.Width / 2 + 20, 0, 100, 20 * 96 / 72 },
+		&fmt, &br);
 
-	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
+	fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 	std::wstring dayOfWeek[7] = { L"Mon", L"Tue", L"Wed", L"Thu", L"Fri", L"Sat", L"Sun" };
 	for (int i = 0; i < 7; i++) {
-		g->DrawString(dayOfWeek[i].c_str(), -1, font.get(), Gdiplus::RectF{ i * cellSize.Width, cellSize.Height, cellSize.Width, 20 * 96 / 72 }, fmt.get(), br.get());
+		g->DrawString(dayOfWeek[i].c_str(), -1, &font, Gdiplus::RectF{ i * cellSize.Width, cellSize.Height, cellSize.Width, 20 * 96 / 72 }, &fmt, &br);
 	}
-
-	fmt.reset();
-	br.reset();
-	font.reset();
 }
 
 void DrawCalendarLabel2(Gdiplus::Graphics* g)
 {
-	auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-	auto br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
-	auto fmt = std::make_unique<Gdiplus::StringFormat>();
-	fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
+	auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+	auto br = Gdiplus::SolidBrush(lightColor);
+	auto fmt = Gdiplus::StringFormat();
+	fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 
 	Date dateJump = DateJump();
 	int firstDayOfMonth = (dateJump.GetWeekDay() - dateJump.GetMonthDay() % 7 + 7) % 7;
@@ -364,67 +345,52 @@ void DrawCalendarLabel2(Gdiplus::Graphics* g)
 			}
 			if (i + 7 * j + 1 > numberOfDays) break;
 
-			g->DrawString(std::to_wstring(i + 7 * j + 1).c_str(), -1, font.get(), Gdiplus::RectF{ row * cellSize.Width, (col + 2) * cellSize.Height, cellSize.Width, cellSize.Height }, fmt.get(), br.get());
+			g->DrawString(std::to_wstring(i + 7 * j + 1).c_str(), -1, &font, Gdiplus::RectF{ row * cellSize.Width, (col + 2) * cellSize.Height, cellSize.Width, cellSize.Height }, &fmt, &br);
 		}
 	}
-
-	fmt.reset();
-	br.reset();
-	font.reset();
 }
 
 void DrawToday(Gdiplus::Graphics* g)
 {
 	if (MonthJump == 0) {
-		auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-		auto br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
-		auto fmt = std::make_unique<Gdiplus::StringFormat>();
-		fmt->SetAlignment(Gdiplus::StringAlignmentCenter);
+		auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+		auto br = Gdiplus::SolidBrush(lightColor);
+		auto fmt = Gdiplus::StringFormat();
+		fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 
 		int firstDayOfMonth = Date{ today.GetYear(), today.GetMonth(), 1 }.GetWeekDay();
 		int row = (((int)today.GetWeekDay() - 1) % 7 + 7) % 7;
 		int col = (today.GetMonthDay() - 1 + (6 + firstDayOfMonth) % 7) / 7;
 
 		Gdiplus::RectF bounds{ row * cellSize.Width, (col + 2) * cellSize.Height, cellSize.Width, cellSize.Height };
-		g->FillRectangle(br.get(), bounds);
+		g->FillRectangle(&br, bounds);
 
-		auto _br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-		g->DrawString(std::to_wstring(today.GetMonthDay()).c_str(), -1, font.get(), bounds, fmt.get(), _br.get());
-
-		fmt.reset();
-		br.reset();
-		font.reset();
+		br.SetColor(darkColor);
+		g->DrawString(std::to_wstring(today.GetMonthDay()).c_str(), -1, &font, bounds, &fmt, &br);
 	}
 }
 
 void DrawClickedCell(Gdiplus::Graphics* g)
 {
 	if (clickedCell[0] != -1) {
-		auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-		auto p = std::make_unique<Gdiplus::Pen>(lightColor, 2);
+		auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+		auto p = Gdiplus::Pen(lightColor, 2);
 		Gdiplus::RectF clickedCellRect{ clickedCell[0] * cellSize.Width, clickedCell[1] * cellSize.Height, cellSize.Width, cellSize.Height };
 
-		g->DrawRectangle(p.get(), clickedCellRect);
-
-		p.reset();
-		font.reset();
+		g->DrawRectangle(&p, clickedCellRect);
 
 		int glowDist = 50;
 		double glowOpacity = 2.0;
-		auto path = std::make_unique<Gdiplus::GraphicsPath>();
-		path.get()->AddRectangle(clickedCellRect);
+		auto path = Gdiplus::GraphicsPath();
+		path.AddRectangle(clickedCellRect);
+		p.SetLineJoin(Gdiplus::LineJoinRound);
 		for (int i = 1; i <= glowDist; i += 3)
 		{
 			int alpha = (int)round(glowOpacity - glowOpacity / glowDist * i);
-			auto p = std::make_unique<Gdiplus::Pen>(Gdiplus::Color(alpha, 255, 255, 255), i);
-			p.get()->SetLineJoin(Gdiplus::LineJoinRound);
-
-			g->DrawPath(p.get(), path.get());
-
-			p.reset();
+			p.SetColor(Gdiplus::Color(alpha, 255, 255, 255));
+			p.SetWidth(i);
+			g->DrawPath(&p, &path);
 		}
-
-		path.reset();
 	}
 }
 
@@ -433,13 +399,13 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 	Date dateJump = DateJump();
 	int firstDayOfMonth = Date{ dateJump.GetYear(), dateJump.GetMonth(), 1 }.GetWeekDay();
 	int beginningEmptyCells = (6 + firstDayOfMonth) % 7;
-	std::unique_ptr<Gdiplus::LinearGradientBrush> br = std::make_unique<Gdiplus::LinearGradientBrush>( Gdiplus::RectF{0, 0, cellSize.Width, cellSize.Height}, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
+	auto br = Gdiplus::LinearGradientBrush( Gdiplus::RectF{0, 0, cellSize.Width, cellSize.Height}, 0xffffa500, 0xff0000ff, Gdiplus::LinearGradientModeForwardDiagonal);
 	const Gdiplus::Color presetColors[3] = { 0xffffff00, 0xffffa500, 0xff0000ff };
 	const float blendPositions[3] = { 0.0f, 0.5f, 1.0f };
-	br->SetInterpolationColors(presetColors, blendPositions, 3);
-	br->SetGammaCorrection(TRUE);
-	auto p = std::make_unique<Gdiplus::Pen>(br.get(), 4);
-	p->SetLineJoin(Gdiplus::LineJoinRound);
+	br.SetInterpolationColors(presetColors, blendPositions, 3);
+	br.SetGammaCorrection(TRUE);
+	auto p = Gdiplus::Pen(&br, 4);
+	p.SetLineJoin(Gdiplus::LineJoinRound);
 	for (int i = 1; i <= DaysInMonth(dateJump.GetYear(), dateJump.GetMonth()); i++)
 	{
 		if (allNoteContent.find(Date{ dateJump.GetYear(), dateJump.GetMonth(), i }.date) != allNoteContent.end())
@@ -447,12 +413,9 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 			int row = (((firstDayOfMonth - 1) % 7 + 7) % 7 + (i - 1)) % 7;
 			int col = (i - 1 + beginningEmptyCells) / 7 + 2;
 
-			g->DrawRectangle(p.get(), Gdiplus::RectF{ row * cellSize.Width, col * cellSize.Height, cellSize.Width, cellSize.Height });
+			g->DrawRectangle(&p, Gdiplus::RectF{ row * cellSize.Width, col * cellSize.Height, cellSize.Width, cellSize.Height });
 		}
 	}
-
-	p.reset();
-	br.reset();
 }
 
 void DrawNote(Gdiplus::Graphics* g)
@@ -467,7 +430,7 @@ void DrawNote(Gdiplus::Graphics* g)
 
 void DrawNoteLabel(Gdiplus::Graphics* g)
 {
-	auto br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
+	auto br = Gdiplus::SolidBrush(lightColor);
 	std::wstring label = L"";
 
 	if (clickedCell[0] == -1)
@@ -476,13 +439,12 @@ void DrawNoteLabel(Gdiplus::Graphics* g)
 		label = L"You have ";
 		label += std::to_wstring(numberOfNotes);
 		label += L" note(s)";
-		auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-		g->DrawString(label.c_str(), -1, font.get(), Gdiplus::PointF{ 0, 0 }, br.get());
-		font.reset();
+		auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+		g->DrawString(label.c_str(), -1, &font, Gdiplus::PointF{ 0, 0 }, &br);
 	}
 	else
 	{
-		auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 32, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+		auto font = Gdiplus::Font(L"Segoe UI", 32, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 
 		if (MonthJump == 0 && clickedCell[0] == todayCell[0] && clickedCell[1] == todayCell[1])
 			label = L"Today";
@@ -490,18 +452,14 @@ void DrawNoteLabel(Gdiplus::Graphics* g)
 			label = std::to_wstring(clickedDay) + L"/";
 			label += std::to_wstring(DateJump().GetMonth());
 		}
-		g->DrawString(label.c_str(), -1, font.get(), Gdiplus::PointF{ 0, 0 }, br.get());
-		font.reset();
+		g->DrawString(label.c_str(), -1, &font, Gdiplus::PointF{ 0, 0 }, &br);
 	}
-
-	br.reset();
 }
 
 void DrawNoteContent(Gdiplus::Graphics* g)
 {
-	auto p = std::make_unique<Gdiplus::Pen>(0x33ffffff, 2);
-	g->DrawRectangle(p.get(), Gdiplus::RectF{ 0, 32 + 10 - 1, note.Width + scrollbar.Width, note.Height - 32 - 10 + 2 });
-	p.reset();
+	auto p = Gdiplus::Pen(0x33ffffff, 2);
+	g->DrawRectangle(&p, Gdiplus::RectF{ 0, 32 + 10 - 1, note.Width + scrollbar.Width, note.Height - 32 - 10 + 2 });
 
 	if (clickedCell[0] == -1) return;
 
@@ -509,8 +467,8 @@ void DrawNoteContent(Gdiplus::Graphics* g)
 	if (allNoteContent.find(key) != allNoteContent.end())
 	{
 		std::vector<std::wstring> noteContent{ allNoteContent[key] };
-		auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-		auto br = std::make_unique<Gdiplus::SolidBrush>(lightColor);
+		auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+		auto br = Gdiplus::SolidBrush(lightColor);
 
 		int noteContentHeight = (10 + 16) * (int)noteContent.size();
 		thumb.Height = note.Height - (32 + 10) - 0.3 * noteContentHeight;
@@ -524,15 +482,12 @@ void DrawNoteContent(Gdiplus::Graphics* g)
 		DeleteObject(clip);
 		Gdiplus::RectF bounds;
 		for (int i = 0; i < (int)noteContent.size(); i++) {
-			g->MeasureString((L" \u25aa " + noteContent[i]).c_str(), -1, font.get(), Gdiplus::PointF{ 0, 0 }, &bounds);
+			g->MeasureString((L" \u25aa " + noteContent[i]).c_str(), -1, &font, Gdiplus::PointF{ 0, 0 }, &bounds);
 			if (bounds.Width > horizontalScrollMaxValue) horizontalScrollMaxValue = bounds.Width;
-			g->DrawString((L" \u25aa " + noteContent[i]).c_str(), -1, font.get(), Gdiplus::PointF{ 0, Gdiplus::REAL((16 + 10) * i + (32 + 10)) }, br.get());
+			g->DrawString((L" \u25aa " + noteContent[i]).c_str(), -1, &font, Gdiplus::PointF{ 0, Gdiplus::REAL((16 + 10) * i + (32 + 10)) }, &br);
 		}
 		g->ResetClip();
 		g->ResetTransform();
-
-		br.reset();
-		font.reset();
 	}
 }
 
@@ -541,36 +496,28 @@ void DrawScrollbar(Gdiplus::Graphics* g)
 	if (verticalScrollMaxValue <= 0) return;
 
 	thumb.Y = -verticalScrollValue * (note.Height - thumb.Height - (32 + 10)) / verticalScrollMaxValue + note.Y + (32 + 10);
-	auto path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), thumb, thumb.Width / 2);
-	auto br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(50, lightColor.GetR(), lightColor.GetG(), lightColor.GetB()));
+	Gdiplus::GraphicsPath path;
+	RoundedRect(&path, thumb, thumb.Width / 2);
+	auto br = Gdiplus::SolidBrush(Gdiplus::Color(50, lightColor.GetR(), lightColor.GetG(), lightColor.GetB()));
 
-	g->FillRectangle(br.get(), scrollbar);
-	br.reset();
-	br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(200, lightColor.GetR(), lightColor.GetG(), lightColor.GetB()));
-	g->FillPath(br.get(), path.get());
-
-	br.reset();
-	path.reset();
+	g->FillRectangle(&br, scrollbar);
+	br.SetColor(Gdiplus::Color(200, lightColor.GetR(), lightColor.GetG(), lightColor.GetB()));
+	g->FillPath(&br, &path);
 }
 
 void DrawAddNote(Gdiplus::Graphics* g)
 {
-	auto br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(clickedCell[0] != -1 ? 0xff808080 : 0x33808080));
+	auto br = Gdiplus::SolidBrush(Gdiplus::Color(clickedCell[0] != -1 ? 0xff808080 : 0x33808080));
+	auto font = Gdiplus::Font(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 
-	g->FillRectangle(br.get(), addbutton);
-	br.reset();
+	g->FillRectangle(&br, addbutton);
 
-	auto font = std::make_unique<Gdiplus::Font>(L"Segoe UI", 16, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	Gdiplus::RectF boundsText;
-	g->MeasureString(L"Add Note", 8, font.get(), addbutton, &boundsText);
-	br = std::make_unique<Gdiplus::SolidBrush>(clickedCell[0] != -1 ? lightColor : 0x33ffffff);
-	g->DrawString(L"Add Note", 8, font.get(),
+	g->MeasureString(L"Add Note", 8, &font, addbutton, &boundsText);
+	br.SetColor(clickedCell[0] != -1 ? lightColor : 0x33ffffff);
+	g->DrawString(L"Add Note", 8, &font,
 		Gdiplus::PointF{ addbutton.X + addbutton.Width / 2 - boundsText.Width / 2, addbutton.Y + addbutton.Height / 2 - boundsText.Height / 2 },
-		br.get());
-
-	br.reset();
-	font.reset();
+		&br);
 }
 
 void DrawPopup(Gdiplus::Graphics* g)
@@ -583,54 +530,46 @@ void DrawPopup(Gdiplus::Graphics* g)
 
 void DrawPopupShadow(Gdiplus::Graphics* g)
 {
-	auto path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 6);
-
-	auto br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(100, 0, 0, 0));
+	auto br = Gdiplus::SolidBrush(Gdiplus::Color(100, 0, 0, 0));
+	Gdiplus::GraphicsPath path;
+	RoundedRect(&path, Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 6);
 
 	g->SetClip(titleBar, Gdiplus::CombineModeExclude);
-	g->FillPath(br.get(), path.get());
+	g->FillPath(&br, &path);
 
 	g->ResetClip();
-	path.reset();
-	br.reset();
+	path.Reset();
 
 	for (int i = popup.X - 40; i < popup.X; i += 2)
 	{
-		path = std::make_unique<Gdiplus::GraphicsPath>();
-		br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color((i - (popup.X - 40)) / 2, 0, 0, 0));
-		RoundedRect(path.get(), Gdiplus::RectF(i, i, windowSize.Width - i * 2, windowSize.Height - i * 2), 30);
+		br.SetColor(Gdiplus::Color((i - (popup.X - 40)) / 2, 0, 0, 0));
+		RoundedRect(&path, Gdiplus::RectF(i, i, windowSize.Width - i * 2, windowSize.Height - i * 2), 30);
 
-		g->FillPath(br.get(), path.get());
+		g->FillPath(&br, &path);
 
-		path.reset();
-		br.reset();
+		path.Reset();
 	}
 }
 
 void DrawPopupBorder(Gdiplus::Graphics* g)
 {
-	auto path = std::make_unique<Gdiplus::GraphicsPath>();
+	auto br = Gdiplus::SolidBrush(darkColor);
+	auto path = Gdiplus::GraphicsPath();
 	RoundedRect(
-		path.get(),
+		&path,
 		Gdiplus::RectF(popup.X, popup.Y, popup.Width, popup.Height),
 		6);
 
-	auto br = std::make_unique<Gdiplus::SolidBrush>(darkColor);
-	g->FillPath(br.get(), path.get());
-	br.reset();
-	path.reset();
+	g->FillPath(&br, &path);
 
 	float padding = 6;
-	br = std::make_unique<Gdiplus::SolidBrush>(Gdiplus::Color(0xffffffff));
-	path = std::make_unique<Gdiplus::GraphicsPath>();
-	RoundedRect(path.get(), Gdiplus::RectF{ popup.X + popup.Width / 2 - 200 / 2 - padding,
+	br.SetColor(Gdiplus::Color(0xffffffff));
+	path.Reset();
+	RoundedRect(&path, Gdiplus::RectF{ popup.X + popup.Width / 2 - 200 / 2 - padding,
 		popup.Y + popup.Height / 2 - 40 / 2 - padding,
 		200 + padding * 2,
 		24 + padding * 2 }, padding);
-	g->FillPath(br.get(), path.get());
-	path.reset();
-	br.reset();
+	g->FillPath(&br, &path);
 }
 
 std::wstring ToMonthName(int month)
@@ -650,11 +589,9 @@ int DaysInMonth(int year, int month)
 
 Date Today()
 {
-	auto t = std::make_unique<std::time_t>(std::time(0));
-	struct tm now = *localtime(t.get());
+	time_t t = std::time(0);
+	struct tm now = *localtime(&t);
 	Date today{ now.tm_year + 1900, now.tm_mon + 1, now.tm_mday };
-
-	t.reset();
 	return today;
 }
 
@@ -696,7 +633,7 @@ int NotesInMonth(int year, int month)
 void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius)
 {
 	int diameter = radius * 2;
-	Gdiplus::RectF arc = Gdiplus::RectF(bounds.X, bounds.Y, diameter, diameter);
+	auto arc = Gdiplus::RectF(bounds.X, bounds.Y, diameter, diameter);
 	path->AddArc(arc, 180, 90);
 	arc.X = bounds.GetRight() - diameter;
 	path->AddArc(arc, 270, 90);
