@@ -5,86 +5,12 @@
 #ifndef _UNICODE
 #define _UNICODE
 #endif // !_UNICODE
-#include <windows.h>
-#include <gdiplus.h>
-#include <ctime>
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <fstream>
 
-LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
-bool RegisterWndClass(const wchar_t*, WNDPROC);
-
-void DrawWindow(HWND);
-void DrawBase(Gdiplus::Graphics*);
-void DrawSysMenu(Gdiplus::Graphics*);
-void DrawTitleBar(Gdiplus::Graphics*);
-void DrawControlBox(Gdiplus::Graphics*);
-void DrawCalendar(Gdiplus::Graphics*);
-void DrawCalendarLabel(Gdiplus::Graphics*);
-void DrawCalendarLabel2(Gdiplus::Graphics*);
-void DrawToday(Gdiplus::Graphics*);
-void DrawClickedCell(Gdiplus::Graphics*);
-void DrawNotedCell(Gdiplus::Graphics*);
-void DrawNote(Gdiplus::Graphics*);
-void DrawNoteLabel(Gdiplus::Graphics*);
-void DrawNoteContent(Gdiplus::Graphics*);
-void DrawScrollbar(Gdiplus::Graphics*);
-void DrawAddNote(Gdiplus::Graphics*);
-void DrawChangeMonth(Gdiplus::Graphics*);
-void DrawPopup(Gdiplus::Graphics*);
-void DrawPopupShadow(Gdiplus::Graphics*);
-void DrawPopupBorder(Gdiplus::Graphics*);
-LRESULT CALLBACK PopupWindowProcedure(HWND, UINT, WPARAM, LPARAM);
-
-void RoundedRect(Gdiplus::GraphicsPath*, Gdiplus::RectF, int);
-void SaveNotes();
-void LoadNotes();
+#include "utils.h"
 
 constexpr auto ID_TIMER = 10000;
-const std::string noteFile = "note.txt";
+
 Gdiplus::SizeF windowSize = { 700, 500 };
-
-struct Date {
-	size_t date;				//yyyyMMdd
-
-	Date(int year, int month, int day)
-	{
-		date = (size_t)(year * 10000 + month * 100 + day);
-	}
-
-	int GetYear() const
-	{
-		return date / 10000;
-	}
-
-	int GetMonth() const
-	{
-		return (date / 100) % 100;
-	}
-
-	int GetMonthDay() const
-	{
-		return date % 100;
-	}
-
-	int GetWeekDay() const
-	{
-		int year = GetYear(), month = GetMonth(), mday = GetMonthDay();
-		int offsets[12] = { 0, 3, 3, 6, 1, 4, 6, 2, 5, 0, 3, 5 };
-		int offset = offsets[month - 1];
-		if (month > 2 && (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)))
-			offset = (offset + 1) % 7;
-		return (mday + offset + 5 * ((year - 1) % 4) + 4 * ((year - 1) % 100) + 6 * ((year - 1) % 400)) % 7;
-	}
-};
-
-Date Today();
-Date DateJump();
-std::wstring ToMonthName(int);
-int DaysInMonth(int, int);
-int NotesInMonth(int, int);
 
 Gdiplus::RectF exitWindow{ windowSize.Width - 25, 5, 20, 20 };
 Gdiplus::RectF minimizeWindow{ exitWindow.X - exitWindow.Width - 10, exitWindow.Y, exitWindow.Width, exitWindow.Height };
@@ -104,7 +30,6 @@ Gdiplus::RectF addbutton{ note.X, note.GetBottom() + 20, note.Width + scrollbar.
 
 bool isPopup = false;
 
-std::unordered_map<size_t, std::vector<std::wstring>> allNoteContent;
 bool canSaveNoteContent = false;
 bool canMoveThumb = false;
 float verticalScrollValue = 0;
@@ -115,7 +40,7 @@ float horizontalScrollMaxValue = 0;
 Gdiplus::PointF mouseLocation = { 0, 0 };
 Gdiplus::PointF oldMouseLocation = { 0, 0 };
 
-Date today = Today();
+static Date today = Today();
 int todayCell[2] = { ((today.GetWeekDay() - 1) % 7 + 7) % 7, (today.GetMonthDay() - 1 + (6 + Date(today.GetYear(), today.GetMonth(), 1).GetWeekDay()) % 7) / 7 + 2 };
 int clickedCell[2] = { todayCell[0], todayCell[1] };
 int clickedDay = today.GetMonthDay();
@@ -123,108 +48,53 @@ int clickedDay = today.GetMonthDay();
 Gdiplus::Color darkColor(0xff1e1e1e);
 Gdiplus::Color lightColor(0xffffffff);
 
-#ifndef _WIN32
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
-#else
-int main()
-#endif // _WIN32
+Date DateJump()
 {
-	HINSTANCE hInstance = GetModuleHandle(nullptr);
-
-	RegisterWndClass(L"Calendar", WindowProcedure);
-	windowHwnd = CreateWindowEx(WS_EX_LAYERED, L"Calendar", L"Calendar", WS_POPUP,
-		CW_USEDEFAULT, CW_USEDEFAULT, windowSize.Width, windowSize.Height,
-		nullptr, nullptr, hInstance, nullptr);
-	SetWindowPos(windowHwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
-
-	LoadNotes();
-
-	RegisterWndClass(L"Popup", PopupWindowProcedure);
-	popupHwnd = CreateWindow(L"Popup", L"Popup", WS_POPUP,
-		windowSize.Width / 2 - popup.Width / 2, windowSize.Height / 2 - popup.Height / 2, popup.Width, popup.Height,
-		HWND_DESKTOP, nullptr, hInstance, nullptr);
-	SetWindowLongPtr(popupHwnd, -8, (LONG_PTR) windowHwnd);
-
-	HWND edit = FindWindowEx(popupHwnd, nullptr, L"Edit", nullptr);
-
-	ShowWindow(windowHwnd, SW_SHOW);
-
-	MSG messages;
-	while (GetMessage(&messages, nullptr, 0, 0)) {
-		if (messages.hwnd == edit && messages.message == WM_KEYUP && messages.wParam == VK_RETURN) {
-			const int len = GetWindowTextLength(messages.hwnd) + 1;
-			wchar_t* text = new wchar_t[len];
-			GetWindowText(messages.hwnd, text, len);
-			if (len > 1 || text[0] != L'\0') {
-				size_t key{ Date{DateJump().GetYear(), DateJump().GetMonth(), clickedDay }.date };
-				if (allNoteContent.find(key) != allNoteContent.end()) {
-					allNoteContent[key].emplace_back(text);
-				}
-				else {
-					allNoteContent.emplace(key, std::vector<std::wstring>{ text });
-				}
-				SetWindowText(messages.hwnd, L"");
-
-				isPopup = false;
-				canSaveNoteContent = true;
-
-				if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
-					verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
-
-				SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
-				ShowWindow(GetParent(messages.hwnd), SW_HIDE);
-			}
-			delete[] text;
+	int new_month = today.GetMonth() + MonthJump, new_year = today.GetYear();
+	if (new_month > 12)
+	{
+		new_year += new_month / 12;
+		new_month %= 12;
+		if (new_month == 0)
+		{
+			new_month = 12;
+			new_year--;
 		}
-		TranslateMessage(&messages);
-		DispatchMessage(&messages);
+	}
+	else if (new_month < 1)
+	{
+		new_year += new_month / 12 - 1;
+		new_month = 12 + new_month % 12;
 	}
 
-	return 0;
+	int maximumDayInMonth = DaysInMonth(new_year, new_month);
+	return Date{ new_year, new_month, today.GetMonthDay() <= maximumDayInMonth ? today.GetMonthDay() : maximumDayInMonth };
 }
 
-void DrawWindow(HWND Handle)
+int NotesInMonth(int year, int month)
 {
-	Gdiplus::Bitmap *myBitmap = new Gdiplus::Bitmap(windowSize.Width, windowSize.Height);
-	Gdiplus::Graphics *g = new Gdiplus::Graphics(myBitmap);
-	g->SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
-	g->SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+	int count = 0;
+	for (int i = 1; i <= 31; i++)
+	{
+		size_t key{ Date{year, month, i}.date };
+		if (allNoteContent.find(key) != allNoteContent.end()) count++;
+	}
 
-	DrawBase(g);
-	DrawSysMenu(g);
-	DrawCalendar(g);
-	DrawNote(g);
-	DrawScrollbar(g);
-	DrawAddNote(g);
-	DrawPopup(g);
+	return count;
+}
 
-	RECT window;
-	GetWindowRect(Handle, &window);
-	HDC screenDc = GetWindowDC(nullptr);
-	HDC memDc = CreateCompatibleDC(screenDc);
-	HBITMAP hBitmap = nullptr;
-	HGDIOBJ oldBitmap = nullptr;
-	myBitmap->GetHBITMAP(Gdiplus::Color(0), &hBitmap);
-	oldBitmap = SelectObject(memDc, hBitmap);
-	SIZE size = { (LONG) windowSize.Width, (LONG) windowSize.Height };
-	POINT pointSource = { 0, 0 };
-	POINT topPos = { window.left, window.top };
-	BLENDFUNCTION blend{};
-	blend.AlphaFormat = AC_SRC_ALPHA;
-	blend.BlendFlags = 0;
-	blend.BlendOp = AC_SRC_OVER;
-	blend.SourceConstantAlpha = 255;
-
-	UpdateLayeredWindow(Handle, screenDc, &topPos, &size, memDc, &pointSource, 0, &blend, 0x00000002);
-	ReleaseDC(nullptr, screenDc);
-	SelectObject(memDc, oldBitmap);
-	DeleteObject(hBitmap);
-	DeleteDC(memDc);
-	DeleteObject(oldBitmap);
-
-	g->Flush();
-	delete g;
-	delete myBitmap;
+void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius)
+{
+	int diameter = radius * 2;
+	auto arc = Gdiplus::RectF(bounds.X, bounds.Y, diameter, diameter);
+	path->AddArc(arc, 180, 90);
+	arc.X = bounds.GetRight() - diameter;
+	path->AddArc(arc, 270, 90);
+	arc.Y = bounds.GetBottom() - diameter;
+	path->AddArc(arc, 0, 90);
+	arc.X = bounds.GetLeft();
+	path->AddArc(arc, 90, 90);
+	path->CloseFigure();
 }
 
 void DrawBase(Gdiplus::Graphics* g)
@@ -233,13 +103,6 @@ void DrawBase(Gdiplus::Graphics* g)
 	auto path = Gdiplus::GraphicsPath();
 	RoundedRect(&path, Gdiplus::RectF(0, 0, windowSize.Width, windowSize.Height), 8);
 	g->FillPath(&br, &path);
-}
-
-void DrawSysMenu(Gdiplus::Graphics* g)
-{
-	DrawTitleBar(g);
-	DrawControlBox(g);
-	DrawChangeMonth(g);
 }
 
 void DrawTitleBar(Gdiplus::Graphics* g)
@@ -289,15 +152,11 @@ void DrawChangeMonth(Gdiplus::Graphics* g)
 	g->DrawLine(&p, Gdiplus::PointF{ nextMonth.X + prevMonth.Width / 2 + prevMonth.Width / 6, nextMonth.Y + nextMonth.Height / 2 }, Gdiplus::PointF{ nextMonth.X + nextMonth.Width / 2, nextMonth.Y + prevMonth.Height / 2 + prevMonth.Height / 4 });
 }
 
-void DrawCalendar(Gdiplus::Graphics* g)
+void DrawSysMenu(Gdiplus::Graphics* g)
 {
-	g->TranslateTransform(calendar.X, calendar.Y);
-	DrawCalendarLabel(g);
-	DrawCalendarLabel2(g);
-	DrawToday(g);
-	DrawClickedCell(g);
-	DrawNotedCell(g);
-	g->ResetTransform();
+	DrawTitleBar(g);
+	DrawControlBox(g);
+	DrawChangeMonth(g);
 }
 
 void DrawCalendarLabel(Gdiplus::Graphics* g)
@@ -418,13 +277,14 @@ void DrawNotedCell(Gdiplus::Graphics* g)
 	}
 }
 
-void DrawNote(Gdiplus::Graphics* g)
+void DrawCalendar(Gdiplus::Graphics* g)
 {
-	g->TranslateTransform(note.X, note.Y);
-
-	DrawNoteLabel(g);
-	DrawNoteContent(g);
-
+	g->TranslateTransform(calendar.X, calendar.Y);
+	DrawCalendarLabel(g);
+	DrawCalendarLabel2(g);
+	DrawToday(g);
+	DrawClickedCell(g);
+	DrawNotedCell(g);
 	g->ResetTransform();
 }
 
@@ -491,6 +351,16 @@ void DrawNoteContent(Gdiplus::Graphics* g)
 	}
 }
 
+void DrawNote(Gdiplus::Graphics* g)
+{
+	g->TranslateTransform(note.X, note.Y);
+
+	DrawNoteLabel(g);
+	DrawNoteContent(g);
+
+	g->ResetTransform();
+}
+
 void DrawScrollbar(Gdiplus::Graphics* g)
 {
 	if (verticalScrollMaxValue <= 0) return;
@@ -518,14 +388,6 @@ void DrawAddNote(Gdiplus::Graphics* g)
 	g->DrawString(L"Add Note", 8, &font,
 		Gdiplus::PointF{ addbutton.X + addbutton.Width / 2 - boundsText.Width / 2, addbutton.Y + addbutton.Height / 2 - boundsText.Height / 2 },
 		&br);
-}
-
-void DrawPopup(Gdiplus::Graphics* g)
-{
-	if (!isPopup)
-		return;
-	DrawPopupShadow(g);
-	DrawPopupBorder(g);
 }
 
 void DrawPopupShadow(Gdiplus::Graphics* g)
@@ -572,140 +434,51 @@ void DrawPopupBorder(Gdiplus::Graphics* g)
 	g->FillPath(&br, &path);
 }
 
-std::wstring ToMonthName(int month)
+void DrawPopup(Gdiplus::Graphics* g)
 {
-	std::wstring list[12] = { L"January", L"February", L"March", L"April", L"May", L"June", L"July", L"August", L"September", L"October", L"November", L"December" };
-	return list[month - 1];
+	if (!isPopup)
+		return;
+	DrawPopupShadow(g);
+	DrawPopupBorder(g);
 }
 
-int DaysInMonth(int year, int month)
+Gdiplus::Bitmap *myBitmap;
+Gdiplus::Graphics *g;
+void DrawWindow(HWND hwnd)
 {
-	if ((month <= 7 && month & 1) || (month >= 8 && month % 2 == 0)) return 31;
-	else if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
-	if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) return 29;
+	DrawBase(g);
+	DrawSysMenu(g);
+	DrawCalendar(g);
+	DrawNote(g);
+	DrawScrollbar(g);
+	DrawAddNote(g);
+	DrawPopup(g);
 
-	return 28;
-}
+	RECT window;
+	GetWindowRect(hwnd, &window);
+	HDC screenDc = GetWindowDC(nullptr);
+	HDC memDc = CreateCompatibleDC(screenDc);
+	HBITMAP hBitmap = nullptr;
+	HGDIOBJ oldBitmap = nullptr;
+	myBitmap->GetHBITMAP(Gdiplus::Color(0), &hBitmap);
+	oldBitmap = SelectObject(memDc, hBitmap);
+	SIZE size = { (LONG) windowSize.Width, (LONG) windowSize.Height };
+	POINT pointSource = { 0, 0 };
+	POINT topPos = { window.left, window.top };
+	BLENDFUNCTION blend{};
+	blend.AlphaFormat = AC_SRC_ALPHA;
+	blend.BlendFlags = 0;
+	blend.BlendOp = AC_SRC_OVER;
+	blend.SourceConstantAlpha = 255;
 
-Date Today()
-{
-	time_t t = std::time(0);
-	struct tm now = *localtime(&t);
-	Date today{ now.tm_year + 1900, now.tm_mon + 1, now.tm_mday };
-	return today;
-}
+	UpdateLayeredWindow(hwnd, screenDc, &topPos, &size, memDc, &pointSource, 0, &blend, 0x00000002);
+	ReleaseDC(nullptr, screenDc);
+	SelectObject(memDc, oldBitmap);
+	DeleteObject(hBitmap);
+	DeleteDC(memDc);
+	DeleteObject(oldBitmap);
 
-Date DateJump()
-{
-	int new_month = today.GetMonth() + MonthJump, new_year = today.GetYear();
-	if (new_month > 12)
-	{
-		new_year += new_month / 12;
-		new_month %= 12;
-		if (new_month == 0)
-		{
-			new_month = 12;
-			new_year--;
-		}
-	}
-	else if (new_month < 1)
-	{
-		new_year += new_month / 12 - 1;
-		new_month = 12 + new_month % 12;
-	}
-
-	int maximumDayInMonth = DaysInMonth(new_year, new_month);
-	return Date{ new_year, new_month, today.GetMonthDay() <= maximumDayInMonth ? today.GetMonthDay() : maximumDayInMonth };
-}
-
-int NotesInMonth(int year, int month)
-{
-	int count = 0;
-	for (int i = 1; i <= 31; i++)
-	{
-		size_t key{ Date{year, month, i}.date };
-		if (allNoteContent.find(key) != allNoteContent.end()) count++;
-	}
-
-	return count;
-}
-
-void RoundedRect(Gdiplus::GraphicsPath* path, Gdiplus::RectF bounds, int radius)
-{
-	int diameter = radius * 2;
-	auto arc = Gdiplus::RectF(bounds.X, bounds.Y, diameter, diameter);
-	path->AddArc(arc, 180, 90);
-	arc.X = bounds.GetRight() - diameter;
-	path->AddArc(arc, 270, 90);
-	arc.Y = bounds.GetBottom() - diameter;
-	path->AddArc(arc, 0, 90);
-	arc.X = bounds.GetLeft();
-	path->AddArc(arc, 90, 90);
-	path->CloseFigure();
-}
-
-//https://stackoverflow.com/questions/6693010/how-do-i-use-multibytetowidechar
-static std::wstring Utf8ToWstr(const std::string& utf8) {
-	int count = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), utf8.length(), nullptr, 0);
-	std::wstring wstr(count, 0);
-	MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), utf8.length(), &wstr[0], count);
-	return wstr;
-}
-static std::string WstrToUtf8(const std::wstring& utf16) {
-	int count = WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), utf16.length(), nullptr, 0, nullptr, nullptr);
-	std::string str(count, 0);
-	WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), -1, &str[0], count, nullptr, nullptr);
-	return str;
-}
-
-void LoadNotes()
-{
-	std::ifstream ifs{ noteFile, std::ios::in };
-
-	if (ifs.is_open())
-	{
-		std::string line;
-
-		while (std::getline(ifs, line))
-		{
-			size_t delimiterIdx = line.find(":");
-			time_t key = std::stoull(line.substr(0, delimiterIdx));
-
-			std::vector<std::wstring> value{};
-			size_t start = delimiterIdx + 1, end{};
-			while ((end = line.find("\u200b", start)) != std::string::npos)
-			{
-				std::string note = line.substr(start, end - start);
-				if (note != "")
-					value.emplace_back(Utf8ToWstr(note));
-
-				start = end + 1;
-			}
-
-			allNoteContent.emplace(key, value);
-		}
-
-		ifs.close();
-	}
-}
-
-void SaveNotes()
-{
-	std::ofstream ofs{ noteFile, std::ios::out };
-
-	if (ofs.is_open()) {
-		for (const auto& notes : allNoteContent) {
-			ofs << notes.first << ":";
-
-			for (const std::wstring& s : notes.second) {
-				ofs << WstrToUtf8(s) << "\u200b";
-			}
-
-			ofs << "\n";
-		}
-
-		ofs.close();
-	}
+	g->Flush();
 }
 
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -718,11 +491,21 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 	{
 		Gdiplus::GdiplusStartupInput gdiInput;
 		Gdiplus::GdiplusStartup(&gdiplusStartupToken, &gdiInput, nullptr);
+		myBitmap = new Gdiplus::Bitmap(windowSize.Width, windowSize.Height);
+		g = new Gdiplus::Graphics(myBitmap);
+		g->SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+		g->SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
 		SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 	} break;
 	case WM_DESTROY:
 	{
 		KillTimer(hWnd, ID_TIMER);
+		if (myBitmap != nullptr) {
+			delete myBitmap;
+		}
+		if (g != nullptr) {
+			delete g;
+		}
 		Gdiplus::GdiplusShutdown(gdiplusStartupToken);
 		DestroyWindow(popupHwnd);
 
@@ -872,12 +655,12 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 					if (minimizeWindow.Contains(mouseLocation))
 					{
 						if (isPopup)
-							ShowWindow(windowHwnd, SW_FORCEMINIMIZE);
+							ShowWindow(hWnd, SW_FORCEMINIMIZE);
 						else
-							ShowWindow(windowHwnd, SW_MINIMIZE);
+							ShowWindow(hWnd, SW_MINIMIZE);
 					}
 					else if (exitWindow.Contains(mouseLocation))
-						DestroyWindow(windowHwnd);
+						DestroyWindow(hWnd);
 					else
 					{
 						ReleaseCapture();
@@ -1015,6 +798,23 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM 
 	return 0;
 }
 
+bool RegisterWndClass(const wchar_t* lpszClassName, WNDPROC lpfnWndProc)
+{
+	WNDCLASS wincl{};
+	wincl.hInstance = GetModuleHandle(nullptr);
+	wincl.lpszClassName = lpszClassName;
+	wincl.lpfnWndProc = lpfnWndProc;
+	wincl.style = CS_CLASSDC;
+	wincl.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+	wincl.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wincl.lpszMenuName = nullptr;
+	wincl.cbClsExtra = 0;
+	wincl.cbWndExtra = 0;
+	wincl.hbrBackground = nullptr;
+
+	return RegisterClass(&wincl);
+}
+
 LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	static HWND contentHwnd;
@@ -1106,7 +906,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 					if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
 						verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
 
-					SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
+					SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 					ShowWindow(GetParent(hWnd), SW_HIDE);
 				}
 				delete[] text;
@@ -1154,7 +954,7 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 			case WM_LBUTTONDOWN:
 			{
 				isPopup = false;
-				SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
+				SetTimer(hWnd, ID_TIMER, 1000 / 60, nullptr);
 				ShowWindow(popupHwnd, SW_HIDE);
 			} break;
 			case WM_SETCURSOR:
@@ -1203,19 +1003,62 @@ LRESULT CALLBACK PopupWindowProcedure(HWND hWnd, UINT message, WPARAM wParam, LP
 	return 0;
 }
 
-bool RegisterWndClass(const wchar_t* lpszClassName, WNDPROC lpfnWndProc)
+#ifndef _WIN32
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int)
+#else
+int main()
+#endif // _WIN32
 {
-	WNDCLASS wincl{};
-	wincl.hInstance = GetModuleHandle(nullptr);
-	wincl.lpszClassName = lpszClassName;
-	wincl.lpfnWndProc = lpfnWndProc;
-	wincl.style = CS_CLASSDC;
-	wincl.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-	wincl.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	wincl.lpszMenuName = nullptr;
-	wincl.cbClsExtra = 0;
-	wincl.cbWndExtra = 0;
-	wincl.hbrBackground = nullptr;
+	HINSTANCE hInstance = GetModuleHandle(nullptr);
 
-	return RegisterClass(&wincl);
+	RegisterWndClass(L"Calendar", WindowProcedure);
+	windowHwnd = CreateWindowEx(WS_EX_LAYERED, L"Calendar", L"Calendar", WS_POPUP,
+		CW_USEDEFAULT, CW_USEDEFAULT, windowSize.Width, windowSize.Height,
+		nullptr, nullptr, hInstance, nullptr);
+	SetWindowPos(windowHwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS);
+
+	LoadNotes();
+
+	RegisterWndClass(L"Popup", PopupWindowProcedure);
+	popupHwnd = CreateWindow(L"Popup", L"Popup", WS_POPUP,
+		windowSize.Width / 2 - popup.Width / 2, windowSize.Height / 2 - popup.Height / 2, popup.Width, popup.Height,
+		HWND_DESKTOP, nullptr, hInstance, nullptr);
+	SetWindowLongPtr(popupHwnd, -8, (LONG_PTR) windowHwnd);
+
+	HWND edit = FindWindowEx(popupHwnd, nullptr, L"Edit", nullptr);
+
+	ShowWindow(windowHwnd, SW_SHOW);
+
+	MSG messages;
+	while (GetMessage(&messages, nullptr, 0, 0)) {
+		if (messages.hwnd == edit && messages.message == WM_KEYUP && messages.wParam == VK_RETURN) {
+			const int len = GetWindowTextLength(messages.hwnd) + 1;
+			wchar_t* text = new wchar_t[len];
+			GetWindowText(messages.hwnd, text, len);
+			if (len > 1 || text[0] != L'\0') {
+				size_t key{ Date{DateJump().GetYear(), DateJump().GetMonth(), clickedDay }.date };
+				if (allNoteContent.find(key) != allNoteContent.end()) {
+					allNoteContent[key].emplace_back(text);
+				}
+				else {
+					allNoteContent.emplace(key, std::vector<std::wstring>{ text });
+				}
+				SetWindowText(messages.hwnd, L"");
+
+				isPopup = false;
+				canSaveNoteContent = true;
+
+				if (verticalScrollMaxValue + (10 + 16) + scrollbar.Height > note.Height)
+					verticalScrollValue = -verticalScrollMaxValue - (10 + 16);
+
+				SetTimer(windowHwnd, ID_TIMER, 1000 / 60, nullptr);
+				ShowWindow(GetParent(messages.hwnd), SW_HIDE);
+			}
+			delete[] text;
+		}
+		TranslateMessage(&messages);
+		DispatchMessage(&messages);
+	}
+
+	return 0;
 }
